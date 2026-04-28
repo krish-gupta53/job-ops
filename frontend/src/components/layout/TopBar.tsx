@@ -1,50 +1,79 @@
-'use client';
+'use client'
+import { usePathname } from 'next/navigation'
+import { Sun, Moon, ExternalLink } from 'lucide-react'
+import { useState, useEffect } from 'react'
 
-import { usePathname } from 'next/navigation';
-import { Bell, ExternalLink } from 'lucide-react';
+const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
+  '/dashboard':    { title: 'Dashboard',     subtitle: 'Your job search at a glance' },
+  '/jobs':         { title: 'Job Feed',       subtitle: 'AI-scored opportunities' },
+  '/resumes':      { title: 'Resumes',        subtitle: 'Tailored resume variants' },
+  '/applications': { title: 'Pipeline',       subtitle: 'Track every application' },
+  '/scanner':      { title: 'Scanner',        subtitle: 'Auto-discover new jobs' },
+  '/profile':      { title: 'Profile',        subtitle: 'Your skills & preferences' },
+}
 
-const titles: Record<string, { title: string; description: string }> = {
-  '/dashboard':    { title: 'Dashboard',         description: 'Your job search at a glance' },
-  '/jobs':         { title: 'Job Feed',           description: 'AI-scored opportunities ranked for you' },
-  '/resumes':      { title: 'Resume Variants',    description: 'Tailored resumes per job — auto-generated' },
-  '/applications': { title: 'Application Pipeline', description: 'Track every application end-to-end' },
-  '/scanner':      { title: 'Job Scanner',        description: 'Automated discovery from 10+ company portals' },
-  '/profile':      { title: 'Your Profile',       description: 'Skills, preferences, and master resume' },
-};
+export default function TopBar() {
+  const pathname = usePathname()
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
-export function TopBar() {
-  const pathname = usePathname();
-  const base = '/' + (pathname.split('/')[1] || '');
-  const info = titles[base] ?? { title: 'Job-Ops', description: '' };
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
+
+  const page = Object.entries(PAGE_TITLES).find(([key]) =>
+    pathname === key || (key !== '/dashboard' && pathname.startsWith(key))
+  )
+  const info = page?.[1] ?? { title: 'Job-Ops', subtitle: '' }
 
   return (
-    <header className="flex items-center justify-between h-14 px-6 border-b border-[var(--color-border)] bg-[var(--color-surface)] shrink-0">
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="min-w-0">
-          <h1 className="text-sm font-semibold text-[var(--color-text)] font-display leading-none">
-            {info.title}
-          </h1>
-          <p className="text-xs text-[var(--color-text-faint)] mt-0.5 truncate">{info.description}</p>
-        </div>
+    <header
+      className="flex items-center justify-between px-6 py-4 border-b shrink-0"
+      style={{
+        background: 'var(--color-surface)',
+        borderColor: 'var(--color-border)',
+        minHeight: '64px',
+      }}
+    >
+      <div>
+        <h1 className="font-semibold text-base" style={{ color: 'var(--color-text)' }}>
+          {info.title}
+        </h1>
+        {info.subtitle && (
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            {info.subtitle}
+          </p>
+        )}
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-3">
         <a
-          href="https://aistudio.google.com/apikey"
+          href="http://localhost:8000/docs"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs text-[var(--color-text-muted)] border border-[var(--color-border)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-all"
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-all duration-150"
+          style={{
+            color: 'var(--color-text-muted)',
+            background: 'var(--color-surface-offset)',
+            border: '1px solid var(--color-border)',
+          }}
         >
-          <ExternalLink size={11} />
-          Gemini API
+          <ExternalLink size={12} />
+          API Docs
         </a>
+
         <button
-          className="flex items-center justify-center w-8 h-8 rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-surface-offset)] hover:text-[var(--color-text)] transition-all"
-          aria-label="Notifications"
+          onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+          className="flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-150"
+          style={{
+            color: 'var(--color-text-muted)',
+            background: 'var(--color-surface-offset)',
+            border: '1px solid var(--color-border)',
+          }}
+          aria-label="Toggle theme"
         >
-          <Bell size={15} />
+          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
         </button>
       </div>
     </header>
-  );
+  )
 }

@@ -1,93 +1,102 @@
-'use client';
-
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+'use client'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard,
-  Briefcase,
-  FileText,
-  Send,
-  Radar,
-  User,
-  Zap,
-  ChevronRight,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+  LayoutDashboard, Briefcase, FileText, ClipboardList,
+  Radar, User, ChevronLeft, ChevronRight, Zap
+} from 'lucide-react'
+import { useState } from 'react'
+import { cn } from '@/lib/utils'
 
-const navItems = [
-  { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-  { href: '/jobs',         label: 'Jobs',         icon: Briefcase },
-  { href: '/resumes',      label: 'Resumes',      icon: FileText },
-  { href: '/applications', label: 'Pipeline',     icon: Send },
-  { href: '/scanner',      label: 'Scanner',      icon: Radar },
-  { href: '/profile',      label: 'Profile',      icon: User },
-];
+const NAV = [
+  { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/jobs',         icon: Briefcase,        label: 'Jobs' },
+  { href: '/resumes',      icon: FileText,         label: 'Resumes' },
+  { href: '/applications', icon: ClipboardList,    label: 'Pipeline' },
+  { href: '/scanner',      icon: Radar,            label: 'Scanner' },
+  { href: '/profile',      icon: User,             label: 'Profile' },
+]
 
-export function Sidebar() {
-  const pathname = usePathname();
+export default function Sidebar() {
+  const pathname = usePathname()
+  const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <aside className="flex flex-col w-56 h-screen shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)]">
+    <aside
+      className={cn(
+        'flex flex-col border-r transition-all duration-300 shrink-0',
+        collapsed ? 'w-16' : 'w-56'
+      )}
+      style={{
+        background: 'var(--color-surface)',
+        borderColor: 'var(--color-border)',
+      }}
+    >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 h-14 border-b border-[var(--color-border)] shrink-0">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--color-primary)] shrink-0">
-          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-label="Job-Ops logo">
-            <path d="M12 2L3 7l9 5 9-5-9-5z" fill="rgba(13,14,16,0.9)" />
-            <path d="M3 12l9 5 9-5" stroke="rgba(13,14,16,0.9)" strokeWidth="2" strokeLinecap="round" />
-            <path d="M3 17l9 5 9-5" stroke="rgba(13,14,16,0.7)" strokeWidth="2" strokeLinecap="round" />
-          </svg>
+      <div
+        className={cn(
+          'flex items-center gap-3 px-4 py-5 border-b shrink-0',
+          collapsed && 'justify-center px-0'
+        )}
+        style={{ borderColor: 'var(--color-divider)' }}
+      >
+        <div
+          className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+          style={{ background: 'var(--color-primary)', boxShadow: '0 0 16px oklch(from var(--color-primary) l c h / 0.4)' }}
+        >
+          <Zap size={16} color="white" fill="white" />
         </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-[var(--color-text)] leading-none tracking-tight font-display">
-            Job-Ops
-          </p>
-          <p className="text-xs text-[var(--color-text-faint)] mt-0.5">AI Search Engine</p>
-        </div>
+        {!collapsed && (
+          <span className="font-semibold text-sm tracking-tight" style={{ color: 'var(--color-text)' }}>
+            Job<span style={{ color: 'var(--color-primary)' }}>Ops</span>
+          </span>
+        )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2">
-        <ul className="space-y-0.5" role="list">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
-            return (
-              <li key={href}>
-                <Link
-                  href={href}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
-                    active
-                      ? 'bg-[var(--color-primary-highlight)] text-[var(--color-primary)]'
-                      : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-offset)] hover:text-[var(--color-text)]'
-                  )}
-                >
-                  <Icon
-                    size={16}
-                    className={cn(
-                      'shrink-0',
-                      active ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-faint)]'
-                    )}
-                  />
-                  <span className="truncate">{label}</span>
-                  {active && (
-                    <ChevronRight size={12} className="ml-auto shrink-0 text-[var(--color-primary)]" />
-                  )}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      {/* Nav links */}
+      <nav className="flex-1 p-2 flex flex-col gap-0.5 overflow-y-auto">
+        {NAV.map(({ href, icon: Icon, label }) => {
+          const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+                collapsed ? 'justify-center px-0' : '',
+                active
+                  ? 'text-white'
+                  : 'hover:text-[var(--color-text)]'
+              )}
+              style={{
+                color: active ? 'white' : 'var(--color-text-muted)',
+                background: active ? 'var(--color-primary)' : 'transparent',
+                boxShadow: active ? '0 0 12px oklch(from var(--color-primary) l c h / 0.3)' : 'none',
+              }}
+            >
+              <Icon size={17} className="shrink-0" />
+              {!collapsed && <span>{label}</span>}
+            </Link>
+          )
+        })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-4 py-3 border-t border-[var(--color-border)] shrink-0">
-        <div className="flex items-center gap-2">
-          <Zap size={12} className="text-[var(--color-primary)] shrink-0" />
-          <span className="text-xs text-[var(--color-text-faint)]">
-            Powered by Gemini Flash
-          </span>
-        </div>
-      </div>
+      {/* Collapse toggle */}
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className={cn(
+          'flex items-center justify-center m-2 p-2 rounded-lg transition-all duration-150 text-sm',
+          collapsed ? 'mx-auto w-8' : 'gap-2'
+        )}
+        style={{
+          color: 'var(--color-text-muted)',
+          background: 'var(--color-surface-offset)',
+          border: '1px solid var(--color-border)',
+        }}
+        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        {collapsed ? <ChevronRight size={14} /> : <><ChevronLeft size={14} /><span>Collapse</span></>}
+      </button>
     </aside>
-  );
+  )
 }
