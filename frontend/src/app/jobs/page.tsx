@@ -1,4 +1,5 @@
 'use client'
+import React from 'react'
 import useSWR from 'swr'
 import { useState } from 'react'
 import Link from 'next/link'
@@ -24,8 +25,10 @@ export default function JobsPage() {
   const [addUrl, setAddUrl] = useState('')
   const [adding, setAdding] = useState(false)
 
+  // Use a string key (not array) so the fetcher signature is unambiguous
+  const swrKey = `jobs-${grade}-${status}-${search}`
   const { data: jobs, isLoading, mutate } = useSWR<Job[]>(
-    ['jobs', grade, status, search],
+    swrKey,
     () => jobsApi.list({ grade: grade || undefined, status: status || undefined, search: search || undefined, limit: 50 }) as Promise<Job[]>
   )
 
@@ -219,7 +222,7 @@ function JobCard({ job, onMutate }: { job: Job; onMutate: () => void }) {
       {/* Footer */}
       <div className="flex items-center justify-between pt-1 border-t"
         style={{ borderColor: 'var(--color-divider)' }}>
-        <span className="text-xs" style={{ color: 'var(--color-text-faint)' }}>{timeAgo(job.scraped_at)}</span>
+        <span className="text-xs tabular-nums" style={{ color: 'var(--color-text-faint)' }}>{timeAgo(job.scraped_at)}</span>
         <div className="flex items-center gap-2">
           {!job.grade && (
             <Button variant="ghost" size="sm" loading={evaluating} onClick={evaluate}
