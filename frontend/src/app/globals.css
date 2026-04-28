@@ -1,56 +1,11 @@
-@import url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&f[]=cabinet-grotesk@400,500,700,800&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&f[]=general-sans@400,500,600&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   Design Tokens — Dark-First Job Dashboard
-   ============================================================ */
 :root {
-  /* Surfaces — Deep neutral dark */
-  --color-bg:              #0d0e10;
-  --color-surface:         #111214;
-  --color-surface-2:       #161719;
-  --color-surface-offset:  #1c1d20;
-  --color-surface-offset-2:#222428;
-  --color-surface-dynamic: #2a2c30;
-  --color-divider:         #252729;
-  --color-border:          #2e3035;
-
-  /* Text */
-  --color-text:            #e8eaed;
-  --color-text-muted:      #8b8f96;
-  --color-text-faint:      #4a4d54;
-  --color-text-inverse:    #0d0e10;
-
-  /* Primary — Teal accent */
-  --color-primary:         #2dd4bf;
-  --color-primary-hover:   #14b8a6;
-  --color-primary-active:  #0d9488;
-  --color-primary-highlight: #0f2926;
-
-  /* Semantic */
-  --color-success:         #4ade80;
-  --color-success-bg:      #052e16;
-  --color-warning:         #fbbf24;
-  --color-warning-bg:      #1c1400;
-  --color-error:           #f87171;
-  --color-error-bg:        #2d0a0a;
-  --color-orange:          #fb923c;
-  --color-gold:            #f59e0b;
-  --color-blue:            #60a5fa;
-  --color-violet:          #a78bfa;
-
-  /* Grade colors */
-  --grade-a: #34d399;
-  --grade-b: #2dd4bf;
-  --grade-c: #fbbf24;
-  --grade-d: #fb923c;
-  --grade-f: #f87171;
-
-  /* Typography */
-  --font-display: 'Cabinet Grotesk', 'Inter', sans-serif;
   --font-body: 'Satoshi', 'Inter', system-ui, sans-serif;
+  --font-display: 'General Sans', 'Satoshi', system-ui, sans-serif;
 
   /* Type scale */
   --text-xs:   clamp(0.75rem,  0.7rem  + 0.25vw, 0.875rem);
@@ -60,36 +15,78 @@
   --text-xl:   clamp(1.5rem,   1.2rem  + 1.25vw, 2.25rem);
 
   /* Spacing */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
+  --space-1: 0.25rem; --space-2: 0.5rem;  --space-3: 0.75rem;
+  --space-4: 1rem;    --space-5: 1.25rem; --space-6: 1.5rem;
+  --space-8: 2rem;    --space-10: 2.5rem; --space-12: 3rem;
+  --space-16: 4rem;   --space-20: 5rem;   --space-24: 6rem;
 
-  /* Radii */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  /* Radius */
+  --radius-sm: 0.375rem; --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;  --radius-xl: 1rem;
   --radius-full: 9999px;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.6);
 
   /* Transitions */
   --transition-interactive: 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ============================================================
-   Base Reset
-   ============================================================ */
+/* ═══ DARK MODE (default for this app) ═══ */
+:root, [data-theme="dark"] {
+  --color-bg:               #0f0f11;
+  --color-surface:          #141417;
+  --color-surface-2:        #1a1a1e;
+  --color-surface-offset:   #1e1e23;
+  --color-surface-dynamic:  #26262d;
+  --color-divider:          #2a2a32;
+  --color-border:           #323239;
+  --color-text:             #e8e8f0;
+  --color-text-muted:       #8c8c9e;
+  --color-text-faint:       #52525f;
+  --color-text-inverse:     #0f0f11;
+  --color-primary:          #6366f1;
+  --color-primary-hover:    #4f51d4;
+  --color-primary-active:   #3e40b8;
+  --color-primary-highlight:#1e1f4a;
+  --color-success:          #34d399;
+  --color-success-hover:    #10b981;
+  --color-warning:          #f59e0b;
+  --color-error:            #f87171;
+  --color-orange:           #fb923c;
+  --color-gold:             #fbbf24;
+  --color-blue:             #60a5fa;
+  --shadow-sm:  0 1px 3px oklch(0 0 0 / 0.3);
+  --shadow-md:  0 4px 16px oklch(0 0 0 / 0.4);
+  --shadow-lg:  0 12px 40px oklch(0 0 0 / 0.5);
+}
+
+/* Light mode override */
+[data-theme="light"] {
+  --color-bg:               #f8f8fc;
+  --color-surface:          #ffffff;
+  --color-surface-2:        #f2f2f8;
+  --color-surface-offset:   #ebebf5;
+  --color-surface-dynamic:  #e4e4ef;
+  --color-divider:          #d8d8e8;
+  --color-border:           #d0d0e0;
+  --color-text:             #1a1a28;
+  --color-text-muted:       #6b6b80;
+  --color-text-faint:       #a8a8bc;
+  --color-text-inverse:     #f8f8fc;
+  --color-primary:          #4f46e5;
+  --color-primary-hover:    #4338ca;
+  --color-primary-active:   #3730a3;
+  --color-primary-highlight:#eef2ff;
+  --color-success:          #059669;
+  --color-success-hover:    #047857;
+  --color-warning:          #d97706;
+  --color-error:            #dc2626;
+  --color-orange:           #ea580c;
+  --color-gold:             #d97706;
+  --color-blue:             #2563eb;
+  --shadow-sm:  0 1px 3px oklch(0.2 0.02 270 / 0.08);
+  --shadow-md:  0 4px 16px oklch(0.2 0.02 270 / 0.12);
+  --shadow-lg:  0 12px 40px oklch(0.2 0.02 270 / 0.18);
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
@@ -108,15 +105,13 @@ body {
   line-height: 1.6;
 }
 
-img, picture, video, canvas, svg { display: block; max-width: 100%; height: auto; }
+img, picture, video, canvas, svg { display: block; max-width: 100%; }
 input, button, textarea, select { font: inherit; color: inherit; }
-h1, h2, h3, h4, h5, h6 { text-wrap: balance; line-height: 1.15; font-family: var(--font-display); }
-p, li, figcaption { text-wrap: pretty; max-width: 72ch; }
-button { cursor: pointer; background: none; border: none; }
-table { border-collapse: collapse; width: 100%; }
+h1, h2, h3, h4, h5, h6 { text-wrap: balance; line-height: 1.2; font-family: var(--font-display); }
+p, li { text-wrap: pretty; max-width: 72ch; }
 
 ::selection {
-  background: rgba(45, 212, 191, 0.25);
+  background: oklch(from var(--color-primary) l c h / 0.25);
   color: var(--color-text);
 }
 
@@ -133,27 +128,23 @@ table { border-collapse: collapse; width: 100%; }
   }
 }
 
-a, button, [role='button'] {
-  transition: color var(--transition-interactive),
-              background var(--transition-interactive),
-              border-color var(--transition-interactive),
-              box-shadow var(--transition-interactive),
-              opacity var(--transition-interactive);
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
 }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-faint); }
 
-.sr-only {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;
-}
+/* Tabular numbers for data */
+.tabular { font-variant-numeric: tabular-nums lining-nums; }
 
-/* ============================================================
-   Shimmer skeleton animation
-   ============================================================ */
+/* Skeleton shimmer */
 @keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
-
 .skeleton {
   background: linear-gradient(
     90deg,
@@ -166,74 +157,17 @@ a, button, [role='button'] {
   border-radius: var(--radius-sm);
 }
 
-/* ============================================================
-   Score bar animation
-   ============================================================ */
-@keyframes grow-x {
-  from { transform: scaleX(0); }
-  to   { transform: scaleX(1); }
-}
-
-.score-bar {
-  transform-origin: left;
-  animation: grow-x 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* ============================================================
-   Custom scrollbar
-   ============================================================ */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: var(--radius-full);
-}
-::-webkit-scrollbar-thumb:hover { background: var(--color-surface-dynamic); }
-
-/* ============================================================
-   Markdown prose styling (for eval reports)
-   ============================================================ */
-.prose {
-  color: var(--color-text);
-  font-size: var(--text-sm);
-  line-height: 1.75;
-}
-.prose h1, .prose h2, .prose h3 {
-  color: var(--color-text);
-  font-family: var(--font-display);
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
-}
-.prose h2 { font-size: var(--text-base); font-weight: 700; }
-.prose h3 { font-size: var(--text-sm); font-weight: 600; color: var(--color-text-muted); }
-.prose p { margin-bottom: 0.875em; }
-.prose ul, .prose ol { padding-left: 1.5em; margin-bottom: 0.875em; }
-.prose li { margin-bottom: 0.25em; }
-.prose strong { color: var(--color-text); font-weight: 600; }
+/* Markdown prose */
+.prose h1, .prose h2, .prose h3 { color: var(--color-text); margin: 1.25em 0 0.5em; }
+.prose p { color: var(--color-text-muted); margin-bottom: 0.75em; }
+.prose ul, .prose ol { padding-left: 1.5em; color: var(--color-text-muted); }
+.prose li { margin-bottom: 0.3em; }
+.prose strong { color: var(--color-text); }
 .prose code {
   background: var(--color-surface-offset);
-  color: var(--color-primary);
   padding: 0.15em 0.4em;
   border-radius: var(--radius-sm);
-  font-size: 0.9em;
+  font-size: 0.875em;
   font-family: 'JetBrains Mono', monospace;
 }
-.prose hr { border-color: var(--color-border); margin: 1.5em 0; }
-.prose blockquote {
-  border-left: 3px solid var(--color-primary);
-  padding-left: 1em;
-  color: var(--color-text-muted);
-  margin: 1em 0;
-}
-
-/* ============================================================
-   Page fade-in
-   ============================================================ */
-@keyframes fade-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.page-enter {
-  animation: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
+.prose hr { border: none; border-top: 1px solid var(--color-divider); margin: 1.25em 0; }
