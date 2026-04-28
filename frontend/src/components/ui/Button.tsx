@@ -1,67 +1,57 @@
-import { cn } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
-import type { ButtonHTMLAttributes } from 'react';
+import { cn } from '@/lib/utils'
+import { type ButtonHTMLAttributes, forwardRef } from 'react'
+import { Loader2 } from 'lucide-react'
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
-type Size = 'xs' | 'sm' | 'md' | 'lg';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
+type Size = 'sm' | 'md' | 'lg'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant;
-  size?: Size;
-  loading?: boolean;
-  icon?: React.ReactNode;
-  iconRight?: React.ReactNode;
+  variant?: Variant
+  size?: Size
+  loading?: boolean
+  icon?: React.ReactNode
 }
 
-const variants: Record<Variant, string> = {
-  primary:
-    'bg-[var(--color-primary)] text-[var(--color-text-inverse)] hover:bg-[var(--color-primary-hover)] active:bg-[var(--color-primary-active)] font-semibold shadow-sm',
-  secondary:
-    'bg-[var(--color-surface-offset)] text-[var(--color-text)] hover:bg-[var(--color-surface-dynamic)] border border-[var(--color-border)]',
-  ghost:
-    'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-offset)] hover:text-[var(--color-text)]',
-  danger:
-    'bg-red-900/30 text-red-400 hover:bg-red-900/50 border border-red-800/40',
-  outline:
-    'border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]',
-};
-
-const sizes: Record<Size, string> = {
-  xs: 'h-6 px-2 text-xs gap-1 rounded-md',
-  sm: 'h-8 px-3 text-xs gap-1.5 rounded-md',
-  md: 'h-9 px-4 text-sm gap-2 rounded-lg',
-  lg: 'h-10 px-5 text-sm gap-2 rounded-lg',
-};
-
-export function Button({
-  variant = 'secondary',
-  size = 'md',
-  loading = false,
-  icon,
-  iconRight,
-  children,
-  className,
-  disabled,
-  ...props
-}: ButtonProps) {
-  return (
-    <button
-      {...props}
-      disabled={disabled || loading}
-      className={cn(
-        'inline-flex items-center justify-center font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] focus-visible:outline-offset-2 whitespace-nowrap',
-        variants[variant],
-        sizes[size],
-        className
-      )}
-    >
-      {loading ? (
-        <Loader2 size={14} className="animate-spin shrink-0" />
-      ) : icon ? (
-        <span className="shrink-0">{icon}</span>
-      ) : null}
-      {children}
-      {iconRight && !loading && <span className="shrink-0">{iconRight}</span>}
-    </button>
-  );
+const VARIANTS: Record<Variant, string> = {
+  primary:   'text-white font-medium',
+  secondary: 'font-medium',
+  ghost:     'font-medium',
+  danger:    'text-white font-medium',
 }
+
+const SIZES: Record<Size, string> = {
+  sm: 'text-xs px-3 py-1.5 gap-1.5',
+  md: 'text-sm px-4 py-2 gap-2',
+  lg: 'text-sm px-5 py-2.5 gap-2',
+}
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant = 'secondary', size = 'md', loading, icon, children, className, style, disabled, ...props }, ref) => {
+    const variantStyle: React.CSSProperties = {
+      primary:   { background: 'var(--color-primary)', color: 'white', border: '1px solid transparent' },
+      secondary: { background: 'var(--color-surface-2)', color: 'var(--color-text)', border: '1px solid var(--color-border)' },
+      ghost:     { background: 'transparent', color: 'var(--color-text-muted)', border: '1px solid transparent' },
+      danger:    { background: 'var(--color-error)', color: 'white', border: '1px solid transparent' },
+    }[variant]
+
+    return (
+      <button
+        ref={ref}
+        disabled={disabled || loading}
+        className={cn(
+          'inline-flex items-center justify-center rounded-lg transition-all duration-150 cursor-pointer',
+          'disabled:opacity-50 disabled:cursor-not-allowed',
+          VARIANTS[variant],
+          SIZES[size],
+          className
+        )}
+        style={{ ...variantStyle, ...style }}
+        {...props}
+      >
+        {loading ? <Loader2 size={14} className="animate-spin" /> : icon}
+        {children}
+      </button>
+    )
+  }
+)
+Button.displayName = 'Button'

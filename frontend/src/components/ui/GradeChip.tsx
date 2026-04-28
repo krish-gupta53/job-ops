@@ -1,41 +1,31 @@
-import { cn } from '@/lib/utils';
-import { getGradeConfig } from '@/lib/utils';
-import type { JobGrade } from '@/types';
+import { cn, gradeColor } from '@/lib/utils'
 
 interface GradeChipProps {
-  grade: JobGrade;
-  score?: number;
-  size?: 'sm' | 'md' | 'lg';
-  showScore?: boolean;
+  grade: string
+  score?: number
+  size?: 'sm' | 'md' | 'lg'
 }
 
-const sizes = {
-  sm: 'w-7 h-7 text-xs',
-  md: 'w-9 h-9 text-sm',
-  lg: 'w-12 h-12 text-base',
-};
+export function GradeChip({ grade, score, size = 'md' }: GradeChipProps) {
+  if (!grade) return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded border text-xs font-mono font-bold"
+      style={{ color: 'var(--color-text-faint)', borderColor: 'var(--color-border)', background: 'var(--color-surface-offset)' }}>
+      —
+    </span>
+  )
 
-export function GradeChip({ grade, score, size = 'md', showScore = false }: GradeChipProps) {
-  const cfg = getGradeConfig(grade);
+  const sizes = { sm: 'text-xs px-1.5 py-0.5', md: 'text-sm px-2.5 py-0.5', lg: 'text-base px-3 py-1' }
+
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <div
-        className={cn(
-          'flex items-center justify-center rounded-lg font-bold ring-1 font-display shrink-0',
-          cfg.color,
-          cfg.bg,
-          cfg.ring,
-          sizes[size]
-        )}
-        title={`Grade ${cfg.label}${score != null ? ` — Score: ${score.toFixed(1)}/5` : ''}`}
-      >
-        {cfg.label}
-      </div>
-      {showScore && score != null && (
-        <span className="text-xs text-[var(--color-text-faint)] tabular-nums">
-          {score.toFixed(1)}
-        </span>
+    <span className={cn(
+      'inline-flex items-center gap-1.5 rounded border font-mono font-bold',
+      sizes[size],
+      gradeColor(grade)
+    )}>
+      {grade}
+      {score !== undefined && (
+        <span className="font-sans font-normal text-xs opacity-70">{score.toFixed(1)}</span>
       )}
-    </div>
-  );
+    </span>
+  )
 }
