@@ -100,21 +100,39 @@ export interface Application {
 // ─── Profile ──────────────────────────────────────────────────────────────────
 export interface Profile {
   id?: string
+  // Basic info
   name?: string
   email?: string
   phone?: string
   location?: string
+  // Social links — support both naming conventions from backend
   linkedin?: string
+  linkedin_url?: string
   github?: string
+  github_url?: string
+  // Career narrative
   summary?: string
   career_story?: string
-  proof_points?: string[]
+  // proof_points can be a string (textarea) or string[] (list) depending on backend
+  proof_points?: string | string[]
+  avoid_preferences?: string
+  avoid?: string | string[]
+  // Tags
   skills?: string[]
   target_roles?: string[]
   target_domains?: string[]
+  // preferred_locations and target_locations are both accepted
+  preferred_locations?: string[]
   target_locations?: string[]
   work_style?: string[]
-  avoid?: string[]
+  // Job preferences
+  experience_years?: number
+  notice_period_days?: number
+  min_salary?: number
+  max_salary?: number
+  salary_currency?: string
+  open_to_relocation?: boolean
+  // Resume
   resume_text?: string
   created_at?: string
   updated_at?: string
@@ -128,7 +146,6 @@ export interface ScanSource {
   company_name: string
   url?: string
   enabled: boolean
-  // Accept both field names for backend flexibility
   jobs_found?: number
   jobs_found_total?: number
   last_scanned?: string
@@ -141,7 +158,6 @@ export interface ScanLog {
   source_name?: string
   status: 'success' | 'error' | 'running' | 'completed' | 'failed'
   jobs_found?: number
-  // Accept both field names for backend flexibility
   new_jobs?: number
   jobs_new?: number
   error_message?: string

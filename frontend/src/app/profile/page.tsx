@@ -7,8 +7,14 @@ import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import type { Profile } from '@/types'
 import {
-  User, Upload, Save, Plus, X, Loader2, CheckCircle2
+  User, Upload, Save, X, Loader2, CheckCircle2
 } from 'lucide-react'
+
+// The profile page uses these specific field names — all declared in Profile type.
+type TagField = 'target_roles' | 'target_domains' | 'preferred_locations' | 'work_style' | 'skills'
+type StringField = 'name' | 'email' | 'phone' | 'location' | 'linkedin_url' | 'github_url'
+  | 'salary_currency' | 'summary' | 'career_story'
+type NumberField = 'experience_years' | 'notice_period_days' | 'min_salary' | 'max_salary'
 
 export default function ProfilePage() {
   const { data: profile, isLoading } = useSWR<Profile>('profile', profileApi.get)
@@ -19,8 +25,10 @@ export default function ProfilePage() {
   const [uploadMsg, setUploadMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const val = <K extends keyof Profile>(k: K): Profile[K] | undefined =>
-    (k in form ? form[k] : profile?.[k]) as Profile[K] | undefined
+  // Generic value reader — form overrides profile
+  function val<K extends keyof Profile>(k: K): Profile[K] | undefined {
+    return (k in form ? form[k] : profile?.[k]) as Profile[K] | undefined
+  }
 
   const set = (k: keyof Profile, v: unknown) => setForm(f => ({ ...f, [k]: v }))
 
@@ -57,13 +65,13 @@ export default function ProfilePage() {
     }
   }
 
-  function addTag(field: 'target_roles' | 'target_domains' | 'preferred_locations' | 'work_style' | 'skills', value: string) {
-    const current = (val(field) as string[]) ?? []
+  function addTag(field: TagField, value: string) {
+    const current = (val(field) as string[] | undefined) ?? []
     if (value && !current.includes(value)) set(field, [...current, value])
   }
 
-  function removeTag(field: 'target_roles' | 'target_domains' | 'preferred_locations' | 'work_style' | 'skills', tag: string) {
-    const current = (val(field) as string[]) ?? []
+  function removeTag(field: TagField, tag: string) {
+    const current = (val(field) as string[] | undefined) ?? []
     set(field, current.filter(t => t !== tag))
   }
 
@@ -86,7 +94,7 @@ export default function ProfilePage() {
           onClick={handleSave}
         >
           {saving
-            ? <><Loader2 size={14} className="animate-spin" /> Saving…</>
+            ? <><Loader2 size={14} className="animate-spin" /> Saving&#x2026;</>
             : saved
               ? <><CheckCircle2 size={14} /> Saved!</>
               : <><Save size={14} /> Save Changes</>
@@ -108,7 +116,7 @@ export default function ProfilePage() {
             >
               <Upload size={24} className="mb-2" style={{ color: 'var(--color-text-faint)' }} />
               <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
-                {uploading ? 'Uploading…' : 'Upload PDF or DOCX'}
+                {uploading ? 'Uploading\u2026' : 'Upload PDF or DOCX'}
               </p>
               <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                 Drag and drop or click to browse
@@ -131,67 +139,54 @@ export default function ProfilePage() {
           {/* Basic Info */}
           <Section title="Basic Info" icon={<User size={15} style={{ color: 'var(--color-primary)' }} />}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Full Name">
-                <input className="field" value={(val('name') as string) ?? ''}
-                  onChange={e => set('name', e.target.value)} placeholder="Krish Gupta" />
-              </Field>
-              <Field label="Email">
-                <input className="field" type="email" value={(val('email') as string) ?? ''}
-                  onChange={e => set('email', e.target.value)} placeholder="you@email.com" />
-              </Field>
-              <Field label="Phone">
-                <input className="field" value={(val('phone') as string) ?? ''}
-                  onChange={e => set('phone', e.target.value)} placeholder="+91 XXXXX XXXXX" />
-              </Field>
-              <Field label="Location">
-                <input className="field" value={(val('location') as string) ?? ''}
-                  onChange={e => set('location', e.target.value)} placeholder="Chennai, India" />
-              </Field>
-              <Field label="LinkedIn URL">
-                <input className="field" value={(val('linkedin_url') as string) ?? ''}
-                  onChange={e => set('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/..." />
-              </Field>
-              <Field label="GitHub URL">
-                <input className="field" value={(val('github_url') as string) ?? ''}
-                  onChange={e => set('github_url', e.target.value)} placeholder="https://github.com/..." />
-              </Field>
+              {([
+                { k: 'name',         label: 'Full Name',     placeholder: 'Krish Gupta' },
+                { k: 'email',        label: 'Email',         placeholder: 'you@email.com',          type: 'email' },
+                { k: 'phone',        label: 'Phone',         placeholder: '+91 XXXXX XXXXX' },
+                { k: 'location',     label: 'Location',      placeholder: 'Chennai, India' },
+                { k: 'linkedin_url', label: 'LinkedIn URL',  placeholder: 'https://linkedin.com/in/...' },
+                { k: 'github_url',   label: 'GitHub URL',    placeholder: 'https://github.com/...' },
+              ] as { k: StringField; label: string; placeholder: string; type?: string }[]).map(({ k, label, placeholder, type }) => (
+                <Field key={k} label={label}>
+                  <input
+                    className="field"
+                    type={type ?? 'text'}
+                    value={(val(k) as string) ?? ''}
+                    onChange={e => set(k, e.target.value)}
+                    placeholder={placeholder}
+                  />
+                </Field>
+              ))}
             </div>
           </Section>
 
           {/* Preferences */}
-          <Section title="Job Preferences" icon={<span style={{ color: 'var(--color-primary)', fontSize: 15 }}>🎯</span>}>
+          <Section title="Job Preferences" icon={<span style={{ color: 'var(--color-primary)', fontSize: 15 }}>&#127919;</span>}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Years of Experience">
-                <input className="field" type="number" min={0}
-                  value={(val('experience_years') as number) ?? ''}
-                  onChange={e => set('experience_years', Number(e.target.value))}
-                  placeholder="0"
-                />
-              </Field>
-              <Field label="Notice Period (days)">
-                <input className="field" type="number" min={0}
-                  value={(val('notice_period_days') as number) ?? ''}
-                  onChange={e => set('notice_period_days', Number(e.target.value))}
-                  placeholder="30"
-                />
-              </Field>
-              <Field label="Min Salary">
-                <input className="field" type="number" min={0}
-                  value={(val('min_salary') as number) ?? ''}
-                  onChange={e => set('min_salary', Number(e.target.value))}
-                  placeholder="0"
-                />
-              </Field>
-              <Field label="Max Salary">
-                <input className="field" type="number" min={0}
-                  value={(val('max_salary') as number) ?? ''}
-                  onChange={e => set('max_salary', Number(e.target.value))}
-                  placeholder="0"
-                />
-              </Field>
+              {([
+                { k: 'experience_years',   label: 'Years of Experience', placeholder: '0' },
+                { k: 'notice_period_days', label: 'Notice Period (days)', placeholder: '30' },
+                { k: 'min_salary',         label: 'Min Salary',           placeholder: '0' },
+                { k: 'max_salary',         label: 'Max Salary',           placeholder: '0' },
+              ] as { k: NumberField; label: string; placeholder: string }[]).map(({ k, label, placeholder }) => (
+                <Field key={k} label={label}>
+                  <input
+                    className="field"
+                    type="number"
+                    min={0}
+                    value={(val(k) as number) ?? ''}
+                    onChange={e => set(k, Number(e.target.value))}
+                    placeholder={placeholder}
+                  />
+                </Field>
+              ))}
               <Field label="Salary Currency">
-                <input className="field" value={(val('salary_currency') as string) ?? ''}
-                  onChange={e => set('salary_currency', e.target.value)} placeholder="INR" />
+                <input
+                  className="field"
+                  value={(val('salary_currency') as string) ?? ''}
+                  onChange={e => set('salary_currency', e.target.value)}
+                  placeholder="INR"
+                />
               </Field>
               <Field label="Open to Relocation">
                 <label className="flex items-center gap-2 cursor-pointer mt-2">
@@ -208,19 +203,19 @@ export default function ProfilePage() {
           </Section>
 
           {/* Tag Fields */}
-          <Section title="Tags & Skills" icon={<span style={{ color: 'var(--color-primary)', fontSize: 15 }}>🏷️</span>}>
+          <Section title="Tags &amp; Skills" icon={<span style={{ color: 'var(--color-primary)', fontSize: 15 }}>&#127991;</span>}>
             <div className="space-y-5">
               {([
-                { field: 'target_roles', label: 'Target Roles', placeholder: 'e.g. ML Engineer' },
-                { field: 'target_domains', label: 'Target Domains', placeholder: 'e.g. LLMOps' },
-                { field: 'preferred_locations', label: 'Preferred Locations', placeholder: 'e.g. Remote' },
-                { field: 'work_style', label: 'Work Style', placeholder: 'e.g. Remote, Hybrid' },
-                { field: 'skills', label: 'Skills', placeholder: 'e.g. Python, PyTorch' },
-              ] as const).map(({ field, label, placeholder }) => (
+                { field: 'target_roles',       label: 'Target Roles',        placeholder: 'e.g. ML Engineer' },
+                { field: 'target_domains',     label: 'Target Domains',      placeholder: 'e.g. LLMOps' },
+                { field: 'preferred_locations',label: 'Preferred Locations', placeholder: 'e.g. Remote' },
+                { field: 'work_style',         label: 'Work Style',          placeholder: 'e.g. Remote, Hybrid' },
+                { field: 'skills',             label: 'Skills',              placeholder: 'e.g. Python, PyTorch' },
+              ] as { field: TagField; label: string; placeholder: string }[]).map(({ field, label, placeholder }) => (
                 <TagField
                   key={field}
                   label={label}
-                  tags={(val(field) as string[]) ?? []}
+                  tags={(val(field) as string[] | undefined) ?? []}
                   placeholder={placeholder}
                   onAdd={v => addTag(field, v)}
                   onRemove={v => removeTag(field, v)}
@@ -229,8 +224,8 @@ export default function ProfilePage() {
             </div>
           </Section>
 
-          {/* Summary & Story */}
-          <Section title="Career Narrative" icon={<span style={{ color: 'var(--color-primary)', fontSize: 15 }}>✍️</span>}>
+          {/* Career Narrative */}
+          <Section title="Career Narrative" icon={<span style={{ color: 'var(--color-primary)', fontSize: 15 }}>&#9997;</span>}>
             <div className="space-y-4">
               <Field label="Summary">
                 <textarea
@@ -279,7 +274,7 @@ export default function ProfilePage() {
             >
               <Button variant="primary" disabled={saving} onClick={handleSave}>
                 {saving
-                  ? <><Loader2 size={14} className="animate-spin" /> Saving…</>
+                  ? <><Loader2 size={14} className="animate-spin" /> Saving&#x2026;</>
                   : <><Save size={14} /> Save Changes</>
                 }
               </Button>
@@ -351,7 +346,7 @@ function TagField({
             style={{ background: 'var(--color-primary-highlight)', color: 'var(--color-primary)' }}
           >
             {tag}
-            <button onClick={() => onRemove(tag)} className="hover:opacity-70">
+            <button onClick={() => onRemove(tag)} className="hover:opacity-70" type="button">
               <X size={10} />
             </button>
           </span>
@@ -359,7 +354,7 @@ function TagField({
         <input
           className="flex-1 bg-transparent text-sm outline-none min-w-[120px]"
           style={{ color: 'var(--color-text)' }}
-          placeholder={tags.length === 0 ? `${placeholder} — press Enter to add` : 'Add more…'}
+          placeholder={tags.length === 0 ? `${placeholder} \u2014 press Enter to add` : 'Add more\u2026'}
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
