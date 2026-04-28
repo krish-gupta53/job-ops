@@ -1,26 +1,42 @@
-version: '3.8'
+version: '3.9'
 
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: job-ops-backend
+    restart: unless-stopped
     ports:
-      - "8000:8000"
+      - '8000:8000'
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - DATABASE_URL=sqlite:///./jobops.db
-      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-prod}
+      - DATABASE_URL=sqlite:////data/jobops.db
       - FRONTEND_URL=http://localhost:3000
+      - SECRET_KEY=${SECRET_KEY:-changeme-in-production}
     volumes:
-      - ./backend/data:/app/data
-      - ./backend/output:/app/output
-    restart: unless-stopped
+      - job-ops-data:/data
+      - job-ops-resumes:/app/resumes
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: job-ops-frontend
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
-      - backend
-    restart: unless-stopped
+      backend:
+        condition: service_healthy
+
+volumes:
+  job-ops-data:
+  job-ops-resumes:
