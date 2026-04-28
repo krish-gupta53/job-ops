@@ -14,7 +14,10 @@ export interface Job {
   score?: number
   salary_min?: number
   salary_max?: number
+  salary_currency?: string
   remote?: boolean
+  match_summary?: string
+  scraped_at?: string
   created_at?: string
   updated_at?: string
   evaluation?: JobEvaluation
@@ -33,9 +36,15 @@ export interface JobEvaluation {
 
 export interface JobStats {
   total: number
+  grade_a: number
+  grade_b: number
+  grade_c: number
+  applied: number
+  interviews: number
+  offers: number
+  evaluations_today: number
   by_grade: Record<string, number>
   by_status: Record<string, number>
-  evaluations_today: number
 }
 
 export interface ResumeVariant {
