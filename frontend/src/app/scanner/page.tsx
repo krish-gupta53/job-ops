@@ -72,7 +72,7 @@ export default function ScannerPage() {
             onClick={handleRunScan}
           >
             {scanning
-              ? <><Loader2 size={14} className="animate-spin" /> Scanning…</>
+              ? <><Loader2 size={14} className="animate-spin" /> Scanning\u2026</>
               : <><Play size={14} /> Run Scan</>
             }
           </Button>
@@ -154,7 +154,7 @@ export default function ScannerPage() {
                 </div>
 
                 <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  <span className="tabular">{src.jobs_found_total} jobs</span>
+                  <span className="tabular">{src.jobs_found_total ?? 0} jobs</span>
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -221,7 +221,8 @@ export default function ScannerPage() {
               </thead>
               <tbody>
                 {logs.map((log, i) => {
-                  const duration = log.finished_at
+                  // Guard log.started_at before using it in date arithmetic
+                  const duration = (log.finished_at && log.started_at)
                     ? Math.round((new Date(log.finished_at).getTime() - new Date(log.started_at).getTime()) / 1000)
                     : null
                   return (
@@ -237,15 +238,15 @@ export default function ScannerPage() {
                           <span className="text-xs capitalize" style={{ color: 'var(--color-text)' }}>{log.status}</span>
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs tabular" style={{ color: 'var(--color-text)' }}>{log.jobs_found}</td>
+                      <td className="px-4 py-3 text-xs tabular" style={{ color: 'var(--color-text)' }}>{log.jobs_found ?? 0}</td>
                       <td className="px-4 py-3">
-                        <Badge className="text-teal-400 bg-teal-400/10">{log.jobs_new} new</Badge>
+                        <Badge className="text-teal-400 bg-teal-400/10">{log.jobs_new ?? 0} new</Badge>
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
                         {timeAgo(log.started_at)}
                       </td>
                       <td className="px-4 py-3 text-xs tabular" style={{ color: 'var(--color-text-faint)' }}>
-                        {duration !== null ? `${duration}s` : '—'}
+                        {duration !== null ? `${duration}s` : '\u2014'}
                       </td>
                     </tr>
                   )
@@ -326,7 +327,7 @@ function AddSourceForm({ onSuccess }: { onSuccess: () => void }) {
       {error && <p className="text-xs" style={{ color: 'var(--color-error)' }}>{error}</p>}
       <div className="flex gap-2 justify-end pt-2">
         <Button type="submit" variant="primary" disabled={loading}>
-          {loading ? <><Loader2 size={14} className="animate-spin" /> Adding…</> : <><Plus size={14} /> Add Source</>}
+          {loading ? <><Loader2 size={14} className="animate-spin" /> Adding\u2026</> : <><Plus size={14} /> Add Source</>}
         </Button>
       </div>
     </form>

@@ -10,7 +10,6 @@ import {
   User, Upload, Save, X, Loader2, CheckCircle2
 } from 'lucide-react'
 
-// The profile page uses these specific field names — all declared in Profile type.
 type TagField = 'target_roles' | 'target_domains' | 'preferred_locations' | 'work_style' | 'skills'
 type StringField = 'name' | 'email' | 'phone' | 'location' | 'linkedin_url' | 'github_url'
   | 'salary_currency' | 'summary' | 'career_story'
@@ -25,7 +24,6 @@ export default function ProfilePage() {
   const [uploadMsg, setUploadMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Generic value reader — form overrides profile
   function val<K extends keyof Profile>(k: K): Profile[K] | undefined {
     return (k in form ? form[k] : profile?.[k]) as Profile[K] | undefined
   }
@@ -73,6 +71,13 @@ export default function ProfilePage() {
   function removeTag(field: TagField, tag: string) {
     const current = (val(field) as string[] | undefined) ?? []
     set(field, current.filter(t => t !== tag))
+  }
+
+  // Safely coerce proof_points (string | string[] | undefined) to string for textarea
+  function proofPointsString(): string {
+    const v = val('proof_points')
+    if (!v) return ''
+    return Array.isArray(v) ? v.join('\n') : String(v)
   }
 
   const dirty = Object.keys(form).length > 0
@@ -206,11 +211,11 @@ export default function ProfilePage() {
           <Section title="Tags &amp; Skills" icon={<span style={{ color: 'var(--color-primary)', fontSize: 15 }}>&#127991;</span>}>
             <div className="space-y-5">
               {([
-                { field: 'target_roles',       label: 'Target Roles',        placeholder: 'e.g. ML Engineer' },
-                { field: 'target_domains',     label: 'Target Domains',      placeholder: 'e.g. LLMOps' },
-                { field: 'preferred_locations',label: 'Preferred Locations', placeholder: 'e.g. Remote' },
-                { field: 'work_style',         label: 'Work Style',          placeholder: 'e.g. Remote, Hybrid' },
-                { field: 'skills',             label: 'Skills',              placeholder: 'e.g. Python, PyTorch' },
+                { field: 'target_roles',        label: 'Target Roles',        placeholder: 'e.g. ML Engineer' },
+                { field: 'target_domains',      label: 'Target Domains',      placeholder: 'e.g. LLMOps' },
+                { field: 'preferred_locations', label: 'Preferred Locations', placeholder: 'e.g. Remote' },
+                { field: 'work_style',          label: 'Work Style',          placeholder: 'e.g. Remote, Hybrid' },
+                { field: 'skills',              label: 'Skills',              placeholder: 'e.g. Python, PyTorch' },
               ] as { field: TagField; label: string; placeholder: string }[]).map(({ field, label, placeholder }) => (
                 <TagField
                   key={field}
@@ -249,7 +254,7 @@ export default function ProfilePage() {
                 <textarea
                   className="field resize-none"
                   rows={3}
-                  value={(val('proof_points') as string) ?? ''}
+                  value={proofPointsString()}
                   onChange={e => set('proof_points', e.target.value)}
                   placeholder="STAR-format achievements..."
                 />

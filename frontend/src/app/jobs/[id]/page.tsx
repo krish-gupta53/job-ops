@@ -81,9 +81,13 @@ export default function JobDetailPage() {
     </div>
   )
 
-  const hasStrengths = (job.strengths?.length ?? 0) > 0
-  const hasGaps      = (job.gaps?.length ?? 0) > 0
-  const hasKeywords  = (job.keywords?.length ?? 0) > 0
+  // Safe guards — optional chaining instead of non-null assertions
+  const strengths = job.strengths ?? []
+  const gaps      = job.gaps ?? []
+  const keywords  = job.keywords ?? []
+  const hasStrengths = strengths.length > 0
+  const hasGaps      = gaps.length > 0
+  const hasKeywords  = keywords.length > 0
 
   return (
     <div className="space-y-6">
@@ -161,7 +165,7 @@ export default function JobDetailPage() {
                           <span className="text-xs font-medium" style={{ color: 'var(--color-success)' }}>Strengths</span>
                         </div>
                         <ul className="space-y-1">
-                          {job.strengths!.map((s, i) => (
+                          {strengths.map((s, i) => (
                             <li key={i} className="text-xs" style={{ color: 'var(--color-text-muted)' }}>• {s}</li>
                           ))}
                         </ul>
@@ -174,7 +178,7 @@ export default function JobDetailPage() {
                           <span className="text-xs font-medium" style={{ color: 'var(--color-error)' }}>Gaps</span>
                         </div>
                         <ul className="space-y-1">
-                          {job.gaps!.map((g, i) => (
+                          {gaps.map((g, i) => (
                             <li key={i} className="text-xs" style={{ color: 'var(--color-text-muted)' }}>• {g}</li>
                           ))}
                         </ul>
@@ -188,7 +192,7 @@ export default function JobDetailPage() {
                   <div className="mb-5">
                     <div className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Keywords to include</div>
                     <div className="flex flex-wrap gap-1.5">
-                      {job.keywords!.map((kw, i) => (
+                      {keywords.map((kw, i) => (
                         <Badge key={i} className="text-violet-400 bg-violet-400/10 border border-violet-400/20">{kw}</Badge>
                       ))}
                     </div>

@@ -13,8 +13,8 @@ import { formatSalary, statusColor, timeAgo } from '@/lib/utils'
 import { Plus, Search, MapPin, Globe, ExternalLink, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const GRADES: (JobGrade | '')[] = ['', 'A', 'B', 'C', 'D', 'F']
-const STATUSES: (JobStatus | '')[] = ['', 'new', 'shortlisted', 'applied', 'interview', 'offer', 'rejected']
+const GRADES: JobGrade[] = ['A', 'B', 'C', 'D', 'F']
+const STATUSES: JobStatus[] = ['new', 'shortlisted', 'applied', 'interview', 'offer', 'rejected']
 
 export default function JobsPage() {
   const [grade, setGrade] = useState<string>('')
@@ -34,7 +34,7 @@ export default function JobsPage() {
     setAdding(true)
     try {
       await jobsApi.add({ url: addUrl })
-      toast.success('Job added! Evaluating with AI…')
+      toast.success('Job added! Evaluating with AI\u2026')
       setAddOpen(false)
       setAddUrl('')
       mutate()
@@ -53,7 +53,7 @@ export default function JobsPage() {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-faint)' }} />
           <input
             type="text"
-            placeholder="Search jobs…"
+            placeholder="Search jobs\u2026"
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border outline-none transition-colors"
@@ -72,7 +72,7 @@ export default function JobsPage() {
           style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
         >
           <option value="">All grades</option>
-          {GRADES.filter(Boolean).map(g => <option key={g} value={g}>Grade {g}</option>)}
+          {GRADES.map(g => <option key={g} value={g}>Grade {g}</option>)}
         </select>
 
         <select
@@ -82,7 +82,7 @@ export default function JobsPage() {
           style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
         >
           <option value="">All statuses</option>
-          {STATUSES.filter(Boolean).map(s => <option key={s} value={s}>{s}</option>)}
+          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
 
         <Button variant="ghost" size="sm" icon={<RefreshCw size={13} />} onClick={() => mutate()}>Refresh</Button>
@@ -91,7 +91,7 @@ export default function JobsPage() {
 
       {/* Jobs count */}
       <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-        {isLoading ? 'Loading…' : `${jobs?.length ?? 0} jobs`}
+        {isLoading ? 'Loading\u2026' : `${jobs?.length ?? 0} jobs`}
       </p>
 
       {/* Job Grid */}
@@ -101,7 +101,7 @@ export default function JobsPage() {
         </div>
       ) : !jobs?.length ? (
         <div className="flex flex-col items-center py-24 text-center">
-          <div className="text-4xl mb-4">🔍</div>
+          <div className="text-4xl mb-4">&#128269;</div>
           <p className="font-medium text-sm mb-2" style={{ color: 'var(--color-text)' }}>No jobs found</p>
           <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
             {search || grade || status ? 'Try adjusting your filters.' : 'Add a job URL or run the scanner to get started.'}
@@ -114,7 +114,7 @@ export default function JobsPage() {
       )}
 
       {/* Add Job Modal */}
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Job" description="Paste a job posting URL — we'll scrape and evaluate it automatically.">
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Job" description="Paste a job posting URL \u2014 we'll scrape and evaluate it automatically.">
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
@@ -203,7 +203,7 @@ function JobCard({ job, onMutate }: { job: Job; onMutate: () => void }) {
             <Globe size={9} className="mr-1" />Remote
           </Badge>
         )}
-        <Badge className={statusColor(job.status)}>{job.status}</Badge>
+        <Badge className={statusColor(job.status)}>{job.status ?? 'new'}</Badge>
         {job.archetype && (
           <Badge className="text-violet-400 bg-violet-400/10 border border-violet-400/20">{job.archetype}</Badge>
         )}

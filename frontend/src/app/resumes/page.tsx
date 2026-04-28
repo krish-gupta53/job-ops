@@ -53,7 +53,10 @@ export default function ResumesPage() {
       ) : (
         <div className="space-y-3">
           {resumes.map(r => {
-            const keywordCount = r.keywords_injected?.length ?? 0
+            // Fix: wrap in parens to correct operator-precedence bug
+            // Without parens: `r.keywords_injected?.length ?? 0 > 0` parses as `?? (0 > 0)` = always true
+            const keywordsInjected = r.keywords_injected ?? []
+            const keywordCount = keywordsInjected.length
             const hasKeywords = keywordCount > 0
             return (
               <div
@@ -80,7 +83,7 @@ export default function ResumesPage() {
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{r.company}</span>
-                      <span className="text-xs" style={{ color: 'var(--color-text-faint)' }}>·</span>
+                      <span className="text-xs" style={{ color: 'var(--color-text-faint)' }}>\u00b7</span>
                       <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--color-text-faint)' }}>
                         <Clock size={10} /> {formatDate(r.generated_at)}
                       </span>
@@ -140,7 +143,7 @@ export default function ResumesPage() {
                       <div>
                         <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Keywords Injected</p>
                         <div className="flex flex-wrap gap-1.5">
-                          {r.keywords_injected!.map(kw => (
+                          {keywordsInjected.map(kw => (
                             <Badge key={kw} className="text-violet-400 bg-violet-400/10">{kw}</Badge>
                           ))}
                         </div>

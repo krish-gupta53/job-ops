@@ -12,8 +12,6 @@ import {
   ArrowRight, Zap, Star
 } from 'lucide-react'
 
-const fetcher = (fn: () => Promise<unknown>) => fn()
-
 export default function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useSWR<JobStats>('job-stats', () => jobsApi.stats() as Promise<JobStats>)
   const { data: topJobs, isLoading: jobsLoading } = useSWR<Job[]>('top-jobs', () =>
@@ -66,7 +64,7 @@ export default function DashboardPage() {
       {/* Welcome */}
       <div>
         <h2 className="text-xl font-semibold mb-1" style={{ color: 'var(--color-text)' }}>
-          Welcome back 👋
+          Welcome back &#128075;
         </h2>
         <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
           Here&apos;s your job search pipeline at a glance.
@@ -165,7 +163,7 @@ export default function DashboardPage() {
           ) : !recentJobs?.length ? (
             <div className="p-8 text-center">
               <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                No jobs yet — add your first job or run a scan.
+                No jobs yet \u2014 add your first job or run a scan.
               </p>
             </div>
           ) : (
@@ -199,7 +197,7 @@ export default function DashboardPage() {
                       {job.company}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge className={statusColor(job.status)}>{job.status}</Badge>
+                      <Badge className={statusColor(job.status)}>{job.status ?? 'new'}</Badge>
                     </td>
                     <td className="px-4 py-3 text-xs tabular" style={{ color: 'var(--color-text-faint)' }}>
                       {timeAgo(job.scraped_at)}
