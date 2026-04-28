@@ -1,72 +1,71 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-import os
 import logging
+import os
+import tempfile
 
 from app.core.database import get_db
 from app.core.models import ResumeVariant, Job
-from app.services.resume_tailor import tailor_resume_for_job
-from app.services.pdf_generator import generate_resume_pdf
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
 @router.get("")
-async def list_resumes(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ResumeVariant).order_by(ResumeVariant.generated_at.desc()))
+async def list_resume_variants(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ResumeVariant).order_by(ResumeVariant.generated_at.desc())
+    )
     return result.scalars().all()
 
 
-@router.get("/{resume_id}")
-async def get_resume(resume_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ResumeVariant).where(ResumeVariant.id == resume_id))
-    resume = result.scalar_one_or_none()
-    if not resume:
-        raise HTTPException(status_code=404, detail="Resume not found")
-    return resume
+@router.get("/{variant_id}")
+async def get_resume_variant(variant_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ResumeVariant).where(ResumeVariant.id == variant_id))
+    variant = result.scalar_one_or_none()
+    if not variant:
+        raise HTTPException(status_code=404, detail="Resume variant not found")
+    return variant
 
 
 @router.post("/generate/{job_id}")
-async def generate_resume_for_job(job_id: str, db: AsyncSession = Depends(get_db)):
-    """Generate a tailored resume PDF for a specific job."""
+async def generate_for_job(job_id: str, db: AsyncSession = Depends(get_db)):
+    """Manually trigger resume generation for a job."""
     result = await db.execute(select(Job).where(Job.id == job_id))
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-
-    resume_variant = await tailor_resume_for_job(job_id)
-    return resume_variant
-
-
-@router.post("/generate-batch")
-async def generate_resumes_batch(job_ids: list[str], db: AsyncSession = Depends(get_db)):
-    """Generate tailored resumes for multiple jobs in parallel."""
-    import asyncio
-    tasks = [tailor_resume_for_job(jid) for jid in job_ids]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    return {
-        "success": [r for r in results if not isinstance(r, Exception)],
-        "errors": [str(r) for r in results if isinstance(r, Exception)]
-    }
+    from app.services.resume_generator import generate_resume_variant
+    result = await generate_resume_variant(job_id)
+    if not result:
+        raise HTTPException(status_code=500, detail="Resume generation failed")
+    return result
 
 
-@router.get("/{resume_id}/download")
-async def download_resume_pdf(resume_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ResumeVariant).where(ResumeVariant.id == resume_id))
-    resume = result.scalar_one_or_none()
-    if not resume:
-        raise HTTPException(status_code=404, detail="Resume not found")
-    if not resume.pdf_path or not os.path.exists(resume.pdf_path):
-        # Regenerate PDF
-        await generate_resume_pdf(resume_id)
-        await db.refresh(resume)
-    if not os.path.exists(resume.pdf_path):
-        raise HTTPException(status_code=500, detail="PDF generation failed")
-    return FileResponse(
-        resume.pdf_path,
+@router.get("/{variant_id}/pdf")
+async def download_resume_pdf(variant_id: str, db: AsyncSession = Depends(get_db)):
+    """Generate and stream a PDF of the resume variant."""
+    result = await db.execute(select(ResumeVariant).where(ResumeVariant.id == variant_id))
+    variant = result.scalar_one_or_none()
+    if not variant:
+        raise HTTPException(status_code=404, detail="Resume variant not found")
+
+    from app.services.resume_generator import generate_pdf_from_markdown
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+        tmp_path = f.name
+
+    success = await generate_pdf_from_markdown(variant.content_markdown, tmp_path)
+    if not success:
+        raise HTTPException(status_code=500, detail="PDF rendering failed")
+
+    with open(tmp_path, "rb") as f:
+        pdf_bytes = f.read()
+    os.unlink(tmp_path)
+
+    filename = f"resume_{variant.company}_{variant.job_title}.pdf".replace(" ", "_")
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
-        filename=f"resume_{resume.company}_{resume.job_title}.pdf".replace(" ", "_")
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
