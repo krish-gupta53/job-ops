@@ -15,7 +15,7 @@ export function gradeColor(grade: string): string {
   }
 }
 
-export function statusColor(status: string): string {
+export function statusColor(status: string | undefined): string {
   switch (status) {
     case 'shortlisted': return 'text-teal-400 bg-teal-400/10'
     case 'applied':     return 'text-blue-400 bg-blue-400/10'
@@ -45,12 +45,20 @@ export function formatDate(dateStr: string | null | undefined): string {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export function formatSalary(min: number, max: number, currency: string): string {
+export function formatSalary(
+  min: number | null | undefined,
+  max: number | null | undefined,
+  currency: string | null | undefined
+): string {
+  const cur = currency ?? ''
   if (!min && !max) return 'Not disclosed'
-  const fmt = (n: number) => n >= 100000 ? `${(n / 100000).toFixed(1)}L` : n >= 1000 ? `${(n / 1000).toFixed(0)}K` : String(n)
-  if (!min) return `Up to ${fmt(max)} ${currency}`
-  if (!max) return `${fmt(min)}+ ${currency}`
-  return `${fmt(min)}–${fmt(max)} ${currency}`
+  const fmt = (n: number) =>
+    n >= 100000 ? `${(n / 100000).toFixed(1)}L` :
+    n >= 1000   ? `${(n / 1000).toFixed(0)}K` :
+    String(n)
+  if (!min) return `Up to ${fmt(max!)} ${cur}`.trim()
+  if (!max) return `${fmt(min)}+ ${cur}`.trim()
+  return `${fmt(min)}–${fmt(max)} ${cur}`.trim()
 }
 
 export function timeAgo(dateStr: string | null | undefined): string {
