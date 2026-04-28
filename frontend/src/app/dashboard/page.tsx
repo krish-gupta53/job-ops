@@ -1,4 +1,5 @@
 'use client'
+import React from 'react'
 import useSWR from 'swr'
 import Link from 'next/link'
 import { jobsApi } from '@/lib/api'
@@ -92,7 +93,7 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{label}</span>
               </div>
-              <div className="text-3xl font-bold tabular" style={{ color: 'var(--color-text)', lineHeight: 1 }}>
+              <div className="text-3xl font-bold tabular-nums" style={{ color: 'var(--color-text)', lineHeight: 1 }}>
                 {value}
               </div>
             </div>
@@ -199,7 +200,7 @@ export default function DashboardPage() {
                     <td className="px-4 py-3">
                       <Badge className={statusColor(job.status)}>{job.status ?? 'new'}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-xs tabular" style={{ color: 'var(--color-text-faint)' }}>
+                    <td className="px-4 py-3 text-xs tabular-nums" style={{ color: 'var(--color-text-faint)' }}>
                       {timeAgo(job.scraped_at)}
                     </td>
                   </tr>
