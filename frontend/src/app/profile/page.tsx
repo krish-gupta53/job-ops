@@ -10,7 +10,7 @@ import {
   User, Upload, Save, X, Loader2, CheckCircle2
 } from 'lucide-react'
 
-type TagField = 'target_roles' | 'target_domains' | 'preferred_locations' | 'work_style' | 'skills'
+type TagFieldKey = 'target_roles' | 'target_domains' | 'preferred_locations' | 'work_style' | 'skills'
 type StringField = 'name' | 'email' | 'phone' | 'location' | 'linkedin_url' | 'github_url'
   | 'salary_currency' | 'summary' | 'career_story'
 type NumberField = 'experience_years' | 'notice_period_days' | 'min_salary' | 'max_salary'
@@ -63,12 +63,12 @@ export default function ProfilePage() {
     }
   }
 
-  function addTag(field: TagField, value: string) {
+  function addTag(field: TagFieldKey, value: string) {
     const current = (val(field) as string[] | undefined) ?? []
     if (value && !current.includes(value)) set(field, [...current, value])
   }
 
-  function removeTag(field: TagField, tag: string) {
+  function removeTag(field: TagFieldKey, tag: string) {
     const current = (val(field) as string[] | undefined) ?? []
     set(field, current.filter(t => t !== tag))
   }
@@ -152,7 +152,7 @@ export default function ProfilePage() {
                 { k: 'linkedin_url', label: 'LinkedIn URL',  placeholder: 'https://linkedin.com/in/...' },
                 { k: 'github_url',   label: 'GitHub URL',    placeholder: 'https://github.com/...' },
               ] as { k: StringField; label: string; placeholder: string; type?: string }[]).map(({ k, label, placeholder, type }) => (
-                <Field key={k} label={label}>
+                <FormField key={k} label={label}>
                   <input
                     className="field"
                     type={type ?? 'text'}
@@ -160,7 +160,7 @@ export default function ProfilePage() {
                     onChange={e => set(k, e.target.value)}
                     placeholder={placeholder}
                   />
-                </Field>
+                </FormField>
               ))}
             </div>
           </Section>
@@ -174,7 +174,7 @@ export default function ProfilePage() {
                 { k: 'min_salary',         label: 'Min Salary',           placeholder: '0' },
                 { k: 'max_salary',         label: 'Max Salary',           placeholder: '0' },
               ] as { k: NumberField; label: string; placeholder: string }[]).map(({ k, label, placeholder }) => (
-                <Field key={k} label={label}>
+                <FormField key={k} label={label}>
                   <input
                     className="field"
                     type="number"
@@ -183,17 +183,17 @@ export default function ProfilePage() {
                     onChange={e => set(k, Number(e.target.value))}
                     placeholder={placeholder}
                   />
-                </Field>
+                </FormField>
               ))}
-              <Field label="Salary Currency">
+              <FormField label="Salary Currency">
                 <input
                   className="field"
                   value={(val('salary_currency') as string) ?? ''}
                   onChange={e => set('salary_currency', e.target.value)}
                   placeholder="INR"
                 />
-              </Field>
-              <Field label="Open to Relocation">
+              </FormField>
+              <FormField label="Open to Relocation">
                 <label className="flex items-center gap-2 cursor-pointer mt-2">
                   <input
                     type="checkbox"
@@ -203,7 +203,7 @@ export default function ProfilePage() {
                   />
                   <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Yes, open to relocation</span>
                 </label>
-              </Field>
+              </FormField>
             </div>
           </Section>
 
@@ -216,8 +216,8 @@ export default function ProfilePage() {
                 { field: 'preferred_locations', label: 'Preferred Locations', placeholder: 'e.g. Remote' },
                 { field: 'work_style',          label: 'Work Style',          placeholder: 'e.g. Remote, Hybrid' },
                 { field: 'skills',              label: 'Skills',              placeholder: 'e.g. Python, PyTorch' },
-              ] as { field: TagField; label: string; placeholder: string }[]).map(({ field, label, placeholder }) => (
-                <TagField
+              ] as { field: TagFieldKey; label: string; placeholder: string }[]).map(({ field, label, placeholder }) => (
+                <TagFieldInput
                   key={field}
                   label={label}
                   tags={(val(field) as string[] | undefined) ?? []}
@@ -232,7 +232,7 @@ export default function ProfilePage() {
           {/* Career Narrative */}
           <Section title="Career Narrative" icon={<span style={{ color: 'var(--color-primary)', fontSize: 15 }}>&#9997;</span>}>
             <div className="space-y-4">
-              <Field label="Summary">
+              <FormField label="Summary">
                 <textarea
                   className="field resize-none"
                   rows={3}
@@ -240,8 +240,8 @@ export default function ProfilePage() {
                   onChange={e => set('summary', e.target.value)}
                   placeholder="A short professional summary..."
                 />
-              </Field>
-              <Field label="Career Story">
+              </FormField>
+              <FormField label="Career Story">
                 <textarea
                   className="field resize-none"
                   rows={4}
@@ -249,8 +249,8 @@ export default function ProfilePage() {
                   onChange={e => set('career_story', e.target.value)}
                   placeholder="Narrative for cover letters and outreach..."
                 />
-              </Field>
-              <Field label="Key Proof Points">
+              </FormField>
+              <FormField label="Key Proof Points">
                 <textarea
                   className="field resize-none"
                   rows={3}
@@ -258,8 +258,8 @@ export default function ProfilePage() {
                   onChange={e => set('proof_points', e.target.value)}
                   placeholder="STAR-format achievements..."
                 />
-              </Field>
-              <Field label="Avoid Preferences">
+              </FormField>
+              <FormField label="Avoid Preferences">
                 <textarea
                   className="field resize-none"
                   rows={2}
@@ -267,7 +267,7 @@ export default function ProfilePage() {
                   onChange={e => set('avoid_preferences', e.target.value)}
                   placeholder="Roles / companies to avoid..."
                 />
-              </Field>
+              </FormField>
             </div>
           </Section>
 
@@ -310,7 +310,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-text-muted)' }}>{label}</label>
@@ -319,7 +319,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function TagField({
+// Renamed from TagField to TagFieldInput to avoid collision with the TagFieldKey type alias
+function TagFieldInput({
   label, tags, placeholder, onAdd, onRemove
 }: {
   label: string
@@ -339,7 +340,7 @@ function TagField({
   }
 
   return (
-    <Field label={label}>
+    <FormField label={label}>
       <div
         className="flex flex-wrap gap-1.5 p-2 rounded-lg border min-h-[40px]"
         style={{ background: 'var(--color-surface-offset)', borderColor: 'var(--color-border)' }}
@@ -365,7 +366,7 @@ function TagField({
           onKeyDown={handleKey}
         />
       </div>
-    </Field>
+    </FormField>
   )
 }
 
