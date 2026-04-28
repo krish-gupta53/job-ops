@@ -1,7 +1,7 @@
 import { cn, gradeColor } from '@/lib/utils'
 
 interface GradeChipProps {
-  grade: string
+  grade?: string
   score?: number
   size?: 'sm' | 'md' | 'lg'
 }
