@@ -3,7 +3,7 @@ import useSWR from 'swr'
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { jobsApi, resumesApi, applicationsApi } from '@/lib/api'
-import type { Job, ResumeVariant, Application } from '@/types'
+import type { Job, ResumeVariant } from '@/types'
 import { GradeChip } from '@/components/ui/GradeChip'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -23,9 +23,9 @@ export default function JobDetailPage() {
   const { data: job, isLoading, mutate } = useSWR<Job>(`job-${id}`, () => jobsApi.get(id) as Promise<Job>)
   const { data: resumes } = useSWR<ResumeVariant[]>('resumes', () => resumesApi.list() as Promise<ResumeVariant[]>)
 
-  const [evaluating, setEvaluating]     = useState(false)
-  const [genResume, setGenResume]       = useState(false)
-  const [creating, setCreating]         = useState(false)
+  const [evaluating, setEvaluating] = useState(false)
+  const [genResume, setGenResume]   = useState(false)
+  const [creating, setCreating]     = useState(false)
 
   const jobResumes = resumes?.filter(r => r.job_id === id) ?? []
 
@@ -81,13 +81,19 @@ export default function JobDetailPage() {
     </div>
   )
 
+  const hasStrengths = (job.strengths?.length ?? 0) > 0
+  const hasGaps      = (job.gaps?.length ?? 0) > 0
+  const hasKeywords  = (job.keywords?.length ?? 0) > 0
+
   return (
     <div className="space-y-6">
       {/* Back + Title */}
       <div>
-        <button onClick={() => router.back()}
+        <button
+          onClick={() => router.back()}
           className="flex items-center gap-2 text-sm mb-4 transition-colors"
-          style={{ color: 'var(--color-text-muted)' }}>
+          style={{ color: 'var(--color-text-muted)' }}
+        >
           <ArrowLeft size={14} /> Back to Jobs
         </button>
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -111,7 +117,7 @@ export default function JobDetailPage() {
           </div>
           <div className="flex items-center gap-3">
             <GradeChip grade={job.grade} score={job.score} size="lg" />
-            <Badge className={statusColor(job.status)}>{job.status}</Badge>
+            <Badge className={statusColor(job.status)}>{job.status ?? 'new'}</Badge>
           </div>
         </div>
       </div>
@@ -146,29 +152,29 @@ export default function JobDetailPage() {
               </CardHeader>
               <CardBody>
                 {/* Strengths + Gaps */}
-                {(job.strengths?.length > 0 || job.gaps?.length > 0) && (
+                {(hasStrengths || hasGaps) && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-                    {job.strengths?.length > 0 && (
+                    {hasStrengths && (
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
                           <CheckCircle size={13} style={{ color: 'var(--color-success)' }} />
                           <span className="text-xs font-medium" style={{ color: 'var(--color-success)' }}>Strengths</span>
                         </div>
                         <ul className="space-y-1">
-                          {job.strengths.map((s, i) => (
+                          {job.strengths!.map((s, i) => (
                             <li key={i} className="text-xs" style={{ color: 'var(--color-text-muted)' }}>• {s}</li>
                           ))}
                         </ul>
                       </div>
                     )}
-                    {job.gaps?.length > 0 && (
+                    {hasGaps && (
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
                           <XCircle size={13} style={{ color: 'var(--color-error)' }} />
                           <span className="text-xs font-medium" style={{ color: 'var(--color-error)' }}>Gaps</span>
                         </div>
                         <ul className="space-y-1">
-                          {job.gaps.map((g, i) => (
+                          {job.gaps!.map((g, i) => (
                             <li key={i} className="text-xs" style={{ color: 'var(--color-text-muted)' }}>• {g}</li>
                           ))}
                         </ul>
@@ -178,11 +184,11 @@ export default function JobDetailPage() {
                 )}
 
                 {/* Keywords */}
-                {job.keywords?.length > 0 && (
+                {hasKeywords && (
                   <div className="mb-5">
                     <div className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>Keywords to include</div>
                     <div className="flex flex-wrap gap-1.5">
-                      {job.keywords.map((kw, i) => (
+                      {job.keywords!.map((kw, i) => (
                         <Badge key={i} className="text-violet-400 bg-violet-400/10 border border-violet-400/20">{kw}</Badge>
                       ))}
                     </div>
@@ -190,7 +196,9 @@ export default function JobDetailPage() {
                 )}
 
                 {/* Full report */}
-                <div className="prose text-xs max-w-none" style={{ maxHeight: '400px', overflowY: 'auto' }}
+                <div
+                  className="prose text-xs max-w-none"
+                  style={{ maxHeight: '400px', overflowY: 'auto' }}
                   dangerouslySetInnerHTML={{ __html: job.evaluation_report.replace(/\n/g, '<br/>') }}
                 />
               </CardBody>
@@ -220,8 +228,11 @@ export default function JobDetailPage() {
               <CardBody>
                 <div className="space-y-3">
                   {jobResumes.map(r => (
-                    <div key={r.id} className="flex items-center justify-between p-3 rounded-lg"
-                      style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}>
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between p-3 rounded-lg"
+                      style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}
+                    >
                       <div>
                         <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
                           Resume — {formatDate(r.generated_at)}
@@ -241,7 +252,7 @@ export default function JobDetailPage() {
           )}
         </div>
 
-        {/* Right: Sidebar info */}
+        {/* Right: Sidebar */}
         <div className="space-y-5">
           <Card>
             <CardHeader>
@@ -249,16 +260,16 @@ export default function JobDetailPage() {
             </CardHeader>
             <CardBody>
               <dl className="space-y-3">
-                {[
-                  { label: 'Source', value: job.source },
-                  { label: 'Type', value: job.job_type },
+                {([
+                  { label: 'Source',    value: job.source },
+                  { label: 'Type',      value: job.job_type },
                   { label: 'Archetype', value: job.archetype },
-                  { label: 'Salary', value: (job.salary_min || job.salary_max) ? formatSalary(job.salary_min, job.salary_max, job.salary_currency) : null },
-                  { label: 'Posted', value: formatDate(job.posted_at) },
-                  { label: 'Scraped', value: formatDate(job.scraped_at) },
+                  { label: 'Salary',    value: (job.salary_min || job.salary_max) ? formatSalary(job.salary_min, job.salary_max, job.salary_currency) : null },
+                  { label: 'Posted',    value: formatDate(job.posted_at) },
+                  { label: 'Scraped',   value: formatDate(job.scraped_at) },
                   { label: 'Evaluated', value: formatDate(job.evaluated_at) },
-                ].map(({ label, value }) =>
-                  value ? (
+                ] as { label: string; value: string | null | undefined }[]).map(({ label, value }) =>
+                  value && value !== '\u2014' ? (
                     <div key={label}>
                       <dt className="text-xs" style={{ color: 'var(--color-text-faint)' }}>{label}</dt>
                       <dd className="text-sm font-medium mt-0.5" style={{ color: 'var(--color-text)' }}>{value}</dd>
