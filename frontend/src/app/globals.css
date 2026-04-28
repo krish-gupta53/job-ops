@@ -1,0 +1,239 @@
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&f[]=cabinet-grotesk@400,500,700,800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Design Tokens — Dark-First Job Dashboard
+   ============================================================ */
+:root {
+  /* Surfaces — Deep neutral dark */
+  --color-bg:              #0d0e10;
+  --color-surface:         #111214;
+  --color-surface-2:       #161719;
+  --color-surface-offset:  #1c1d20;
+  --color-surface-offset-2:#222428;
+  --color-surface-dynamic: #2a2c30;
+  --color-divider:         #252729;
+  --color-border:          #2e3035;
+
+  /* Text */
+  --color-text:            #e8eaed;
+  --color-text-muted:      #8b8f96;
+  --color-text-faint:      #4a4d54;
+  --color-text-inverse:    #0d0e10;
+
+  /* Primary — Teal accent */
+  --color-primary:         #2dd4bf;
+  --color-primary-hover:   #14b8a6;
+  --color-primary-active:  #0d9488;
+  --color-primary-highlight: #0f2926;
+
+  /* Semantic */
+  --color-success:         #4ade80;
+  --color-success-bg:      #052e16;
+  --color-warning:         #fbbf24;
+  --color-warning-bg:      #1c1400;
+  --color-error:           #f87171;
+  --color-error-bg:        #2d0a0a;
+  --color-orange:          #fb923c;
+  --color-gold:            #f59e0b;
+  --color-blue:            #60a5fa;
+  --color-violet:          #a78bfa;
+
+  /* Grade colors */
+  --grade-a: #34d399;
+  --grade-b: #2dd4bf;
+  --grade-c: #fbbf24;
+  --grade-d: #fb923c;
+  --grade-f: #f87171;
+
+  /* Typography */
+  --font-display: 'Cabinet Grotesk', 'Inter', sans-serif;
+  --font-body: 'Satoshi', 'Inter', system-ui, sans-serif;
+
+  /* Type scale */
+  --text-xs:   clamp(0.75rem,  0.7rem  + 0.25vw, 0.875rem);
+  --text-sm:   clamp(0.875rem, 0.8rem  + 0.35vw, 1rem);
+  --text-base: clamp(1rem,     0.95rem + 0.25vw, 1.125rem);
+  --text-lg:   clamp(1.125rem, 1rem    + 0.75vw, 1.5rem);
+  --text-xl:   clamp(1.5rem,   1.2rem  + 1.25vw, 2.25rem);
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Radii */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.6);
+
+  /* Transitions */
+  --transition-interactive: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ============================================================
+   Base Reset
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+  scroll-padding-top: var(--space-16);
+}
+
+body {
+  min-height: 100dvh;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  line-height: 1.6;
+}
+
+img, picture, video, canvas, svg { display: block; max-width: 100%; height: auto; }
+input, button, textarea, select { font: inherit; color: inherit; }
+h1, h2, h3, h4, h5, h6 { text-wrap: balance; line-height: 1.15; font-family: var(--font-display); }
+p, li, figcaption { text-wrap: pretty; max-width: 72ch; }
+button { cursor: pointer; background: none; border: none; }
+table { border-collapse: collapse; width: 100%; }
+
+::selection {
+  background: rgba(45, 212, 191, 0.25);
+  color: var(--color-text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+a, button, [role='button'] {
+  transition: color var(--transition-interactive),
+              background var(--transition-interactive),
+              border-color var(--transition-interactive),
+              box-shadow var(--transition-interactive),
+              opacity var(--transition-interactive);
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;
+}
+
+/* ============================================================
+   Shimmer skeleton animation
+   ============================================================ */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-offset) 25%,
+    var(--color-surface-dynamic) 50%,
+    var(--color-surface-offset) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================================
+   Score bar animation
+   ============================================================ */
+@keyframes grow-x {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.score-bar {
+  transform-origin: left;
+  animation: grow-x 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ============================================================
+   Custom scrollbar
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-surface-dynamic); }
+
+/* ============================================================
+   Markdown prose styling (for eval reports)
+   ============================================================ */
+.prose {
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  line-height: 1.75;
+}
+.prose h1, .prose h2, .prose h3 {
+  color: var(--color-text);
+  font-family: var(--font-display);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+.prose h2 { font-size: var(--text-base); font-weight: 700; }
+.prose h3 { font-size: var(--text-sm); font-weight: 600; color: var(--color-text-muted); }
+.prose p { margin-bottom: 0.875em; }
+.prose ul, .prose ol { padding-left: 1.5em; margin-bottom: 0.875em; }
+.prose li { margin-bottom: 0.25em; }
+.prose strong { color: var(--color-text); font-weight: 600; }
+.prose code {
+  background: var(--color-surface-offset);
+  color: var(--color-primary);
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-sm);
+  font-size: 0.9em;
+  font-family: 'JetBrains Mono', monospace;
+}
+.prose hr { border-color: var(--color-border); margin: 1.5em 0; }
+.prose blockquote {
+  border-left: 3px solid var(--color-primary);
+  padding-left: 1em;
+  color: var(--color-text-muted);
+  margin: 1em 0;
+}
+
+/* ============================================================
+   Page fade-in
+   ============================================================ */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.page-enter {
+  animation: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
