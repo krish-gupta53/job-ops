@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { appStatusColor, formatDate, timeAgo } from '@/lib/utils'
 import type { Application, AppStatus, Job } from '@/types'
 import {
-  Send, MessageSquare, Trophy, XCircle, Ghost,
+  Send, MessageSquare, Trophy, XCircle, PackageOpen,
   ClipboardList, Wand2, ExternalLink, ChevronRight, Loader2
 } from 'lucide-react'
 
@@ -20,7 +20,8 @@ const COLUMNS: { key: AppStatus; label: string; icon: React.ReactNode; color: st
   { key: 'interviewing', label: 'Interviewing',  icon: <MessageSquare size={14} />, color: 'text-violet-300' },
   { key: 'offer',        label: 'Offer',         icon: <Trophy size={14} />,        color: 'text-emerald-300' },
   { key: 'rejected',     label: 'Rejected',      icon: <XCircle size={14} />,       color: 'text-red-300' },
-  { key: 'ghosted',      label: 'Ghosted',       icon: <Ghost size={14} />,         color: 'text-zinc-500' },
+  // Ghost does not exist in lucide-react — replaced with PackageOpen
+  { key: 'ghosted',      label: 'Ghosted',       icon: <PackageOpen size={14} />,   color: 'text-zinc-500' },
 ]
 
 export default function ApplicationsPage() {
@@ -90,7 +91,7 @@ export default function ApplicationsPage() {
               <div className="flex items-center gap-1.5 mb-2 px-1">
                 <span className={col.color}>{col.icon}</span>
                 <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>{col.label}</span>
-                <span className="ml-auto text-xs tabular" style={{ color: 'var(--color-text-faint)' }}>
+                <span className="ml-auto text-xs tabular-nums" style={{ color: 'var(--color-text-faint)' }}>
                   {grouped[col.key].length}
                 </span>
               </div>
@@ -200,7 +201,7 @@ function AppDetail({
       {/* Job info */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="font-semibold" style={{ color: 'var(--color-text)' }}>{job?.title ?? '—'}</div>
+          <div className="font-semibold" style={{ color: 'var(--color-text)' }}>{job?.title ?? '\u2014'}</div>
           <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{job?.company}</div>
         </div>
         {job?.apply_url && (
@@ -264,7 +265,7 @@ function AppDetail({
                   onClick={() => onGenerate(app.id, tab)}
                 >
                   {generating?.id === app.id && generating.type === tab
-                    ? <><Loader2 size={14} className="animate-spin" /> Generating…</>
+                    ? <><Loader2 size={14} className="animate-spin" /> Generating\u2026</>
                     : <><Wand2 size={14} /> Generate {tab === 'cover' ? 'Cover Letter' : 'Outreach'}</>
                   }
                 </Button>
@@ -290,7 +291,7 @@ function AppDetail({
                   onClick={() => onGenerate(app.id, tab)}
                 >
                   {generating?.id === app.id && generating.type === tab
-                    ? <><Loader2 size={14} className="animate-spin" /> Regenerating…</>
+                    ? <><Loader2 size={14} className="animate-spin" /> Regenerating\u2026</>
                     : <><Wand2 size={14} /> Regenerate</>
                   }
                 </Button>
