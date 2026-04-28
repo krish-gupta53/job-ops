@@ -53,7 +53,8 @@ export default function ResumesPage() {
       ) : (
         <div className="space-y-3">
           {resumes.map(r => {
-            const hasKeywords = (r.keywords_injected?.length ?? 0) > 0
+            const keywordCount = r.keywords_injected?.length ?? 0
+            const hasKeywords = keywordCount > 0
             return (
               <div
                 key={r.id}
@@ -88,7 +89,7 @@ export default function ResumesPage() {
 
                   {hasKeywords && (
                     <Badge className="text-violet-400 bg-violet-400/10 hidden sm:inline-flex">
-                      {r.keywords_injected!.length} keywords
+                      {keywordCount} keywords
                     </Badge>
                   )}
 
