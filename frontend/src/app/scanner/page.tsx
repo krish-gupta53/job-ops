@@ -24,20 +24,18 @@ const SOURCE_TYPE_HINTS: Record<string, string> = {
   custom: 'any ATS or careers page URL',
 }
 
-interface ScanResult {
-  total_found: number
-  total_new: number
-  sources_scanned: number
-}
+// Seed status union so TypeScript knows all possible values
+type SeedStatus = 'idle' | 'seeding' | 'scanning' | 'done' | 'error'
 
 export default function ScannerPage() {
   const { data: sources, isLoading: srcLoading } = useSWR<ScanSource[]>('scan-sources', scannerApi.sources)
   const { data: logs, isLoading: logsLoading } = useSWR<ScanLog[]>('scan-logs', () => scannerApi.logs(15))
   const [addOpen, setAddOpen] = useState(false)
   const [scanning, setScanning] = useState(false)
-  const [seeding, setSeeding] = useState(false)
+  const [seedStatus, setSeedStatus] = useState<SeedStatus>('idle')
+  const [seedMsg, setSeedMsg] = useState('')
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [scanResult, setScanResult] = useState<ScanResult | null>(null)
+  const [scanResult, setScanResult] = useState<{ sources_scanned: number } | null>(null)
   const [showAllSources, setShowAllSources] = useState(false)
 
   const enabledCount = sources?.filter(s => s.enabled).length ?? 0
@@ -51,7 +49,7 @@ export default function ScannerPage() {
       await scannerApi.runScan()
       await new Promise(r => setTimeout(r, 3000))
       await Promise.all([mutate('scan-sources'), mutate('scan-logs'), mutate('jobs')])
-      setScanResult({ total_found: 0, total_new: 0, sources_scanned: enabledCount })
+      setScanResult({ sources_scanned: enabledCount })
     } catch (e) {
       console.error(e)
     } finally {
@@ -59,17 +57,29 @@ export default function ScannerPage() {
     }
   }
 
-  async function handleSeedDefaults() {
-    setSeeding(true)
+  // Step 1: seed all default companies into DB
+  // Step 2: immediately trigger a full scan so jobs are fetched
+  async function handleSeedAndScan() {
+    setSeedStatus('seeding')
+    setSeedMsg('')
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/scanner/seed-defaults`, { method: 'POST' })
-      const data = await res.json() as { message: string }
+      const seedRes = await scannerApi.seedDefaults()
+      setSeedMsg(`${seedRes.added} new companies added. Starting scan…`)
       await mutate('scan-sources')
-      alert(`Done! ${data.message}`)
+
+      // Immediately kick off a full scan so jobs are fetched right away
+      setSeedStatus('scanning')
+      await scannerApi.runScan()
+      // Give backend a moment then refresh everything
+      await new Promise(r => setTimeout(r, 3000))
+      await Promise.all([mutate('scan-sources'), mutate('scan-logs'), mutate('jobs')])
+
+      setSeedStatus('done')
+      setSeedMsg(`${seedRes.added > 0 ? seedRes.added + ' companies added. ' : 'All defaults already present. '}Scan started — check Jobs tab for results.`)
     } catch (e) {
+      setSeedStatus('error')
+      setSeedMsg('Something went wrong. Check the console.')
       console.error(e)
-    } finally {
-      setSeeding(false)
     }
   }
 
@@ -88,10 +98,12 @@ export default function ScannerPage() {
     }
   }
 
+  const seedBusy = seedStatus === 'seeding' || seedStatus === 'scanning'
+
   return (
     <div className="space-y-8">
 
-      {/* ── Hero: Big Scan Button ── */}
+      {/* Hero: Big Scan Button */}
       <div
         className="rounded-2xl border p-6"
         style={{
@@ -137,7 +149,7 @@ export default function ScannerPage() {
         </div>
       </div>
 
-      {/* ── Sources Header ── */}
+      {/* Sources Header */}
       <section>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -153,20 +165,32 @@ export default function ScannerPage() {
             <Button
               size="sm"
               variant="ghost"
-              disabled={seeding}
-              onClick={handleSeedDefaults}
-              title="Re-add any missing built-in companies"
+              disabled={seedBusy}
+              onClick={handleSeedAndScan}
+              title="Add all default companies and immediately scan for jobs"
             >
-              {seeding
-                ? <><Loader2 size={13} className="animate-spin" /> Seeding…</>
-                : <><RefreshCw size={13} /> Restore Defaults</>
-              }
+              {seedStatus === 'seeding' && <><Loader2 size={13} className="animate-spin" /> Adding companies…</>}
+              {seedStatus === 'scanning' && <><Loader2 size={13} className="animate-spin" /> Scanning for jobs…</>}
+              {(seedStatus === 'idle' || seedStatus === 'done' || seedStatus === 'error') && <><RefreshCw size={13} /> Load All Defaults &amp; Scan</>}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setAddOpen(true)}>
               <Plus size={14} /> Add Company
             </Button>
           </div>
         </div>
+
+        {/* Seed status message */}
+        {seedMsg && (
+          <div
+            className="mb-4 px-4 py-2.5 rounded-lg text-sm"
+            style={{
+              background: seedStatus === 'error' ? 'var(--color-error-highlight)' : 'var(--color-primary-highlight)',
+              color: seedStatus === 'error' ? 'var(--color-error)' : 'var(--color-primary)',
+            }}
+          >
+            {seedMsg}
+          </div>
+        )}
 
         {/* Sources grid */}
         {srcLoading ? (
@@ -191,11 +215,13 @@ export default function ScannerPage() {
             <Building2 size={36} className="mb-3" style={{ color: 'var(--color-text-faint)' }} />
             <p className="text-sm font-medium mb-1" style={{ color: 'var(--color-text)' }}>No companies configured</p>
             <p className="text-sm mb-5" style={{ color: 'var(--color-text-muted)' }}>
-              Load 80+ pre-built companies or add your own.
+              Load 80+ pre-built companies and immediately scan for matching jobs.
             </p>
             <div className="flex gap-2">
-              <Button size="sm" variant="primary" disabled={seeding} onClick={handleSeedDefaults}>
-                {seeding ? <><Loader2 size={13} className="animate-spin" /> Loading…</> : <><RefreshCw size={13} /> Load All Defaults</>}
+              <Button size="sm" variant="primary" disabled={seedBusy} onClick={handleSeedAndScan}>
+                {seedStatus === 'seeding' && <><Loader2 size={13} className="animate-spin" /> Adding companies…</>}
+                {seedStatus === 'scanning' && <><Loader2 size={13} className="animate-spin" /> Scanning for jobs…</>}
+                {(seedStatus === 'idle' || seedStatus === 'done' || seedStatus === 'error') && <><RefreshCw size={13} /> Load All Defaults &amp; Scan</>}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setAddOpen(true)}>
                 <Plus size={13} /> Add Manually
@@ -283,7 +309,7 @@ export default function ScannerPage() {
         )}
       </section>
 
-      {/* ── Scan Logs ── */}
+      {/* Scan Logs */}
       <section>
         <div className="flex items-center gap-2 mb-4">
           <Clock size={15} style={{ color: 'var(--color-primary)' }} />
@@ -306,7 +332,7 @@ export default function ScannerPage() {
             </div>
           ) : !logs?.length ? (
             <div className="p-8 text-center">
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No scans run yet. Hit &quot;Scan All &amp; Find Jobs&quot; above.</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No scans run yet. Hit &quot;Load All Defaults &amp; Scan&quot; or &quot;Scan All &amp; Find Jobs&quot; above.</p>
             </div>
           ) : (
             <table className="w-full text-sm">

@@ -75,10 +75,16 @@ export const scannerApi = {
   sources: (): Promise<import('@/types').ScanSource[]> => request('/api/scanner/sources'),
   addSource: (data: { name: string; source_type: string; company_name: string; url?: string }): Promise<import('@/types').ScanSource> =>
     request('/api/scanner/sources', { method: 'POST', body: JSON.stringify(data) }),
-  toggleSource: (id: string): Promise<import('@/types').ScanSource> => request(`/api/scanner/sources/${id}/toggle`, { method: 'PATCH' }),
-  deleteSource: (id: string): Promise<void> => request(`/api/scanner/sources/${id}`, { method: 'DELETE' }),
-  runScan: (): Promise<{ message: string }> => request('/api/scanner/run', { method: 'POST' }),
-  logs: (limit = 20): Promise<import('@/types').ScanLog[]> => request(`/api/scanner/logs?limit=${limit}`),
+  toggleSource: (id: string): Promise<{ enabled: boolean }> =>
+    request(`/api/scanner/sources/${id}/toggle`, { method: 'PATCH' }),
+  deleteSource: (id: string): Promise<{ success: boolean }> =>
+    request(`/api/scanner/sources/${id}`, { method: 'DELETE' }),
+  runScan: (): Promise<{ message: string }> =>
+    request('/api/scanner/run', { method: 'POST' }),
+  seedDefaults: (): Promise<{ added: number; message: string }> =>
+    request('/api/scanner/seed-defaults', { method: 'POST' }),
+  logs: (limit = 20): Promise<import('@/types').ScanLog[]> =>
+    request(`/api/scanner/logs?limit=${limit}`),
 }
 
 // ─── Apply ───────────────────────────────────────────────────────────────────
