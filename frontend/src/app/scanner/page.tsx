@@ -13,7 +13,8 @@ import {
   Plus, Play, Trash2, ToggleLeft, ToggleRight,
   CheckCircle2, XCircle, Loader2, Clock, Globe,
   Zap, RefreshCw, Building2, ChevronDown, ChevronUp,
-  AlertTriangle, FileText, ArrowRight
+  AlertTriangle, FileText, ArrowRight, SlidersHorizontal,
+  Coins
 } from 'lucide-react'
 
 const SOURCE_TYPES = ['greenhouse', 'lever', 'ashby', 'workday', 'custom']
@@ -27,6 +28,10 @@ const SOURCE_TYPE_HINTS: Record<string, string> = {
 }
 
 type SeedStatus = 'idle' | 'seeding' | 'scanning' | 'done' | 'error'
+
+// Rough token cost estimate: ~1500 tokens per new job evaluated
+const TOKENS_PER_SOURCE = 1500
+const AVG_JOBS_PER_SOURCE = 15  // conservative estimate
 
 export default function ScannerPage() {
   const router = useRouter()
@@ -42,12 +47,19 @@ export default function ScannerPage() {
   const [showAllSources, setShowAllSources] = useState(false)
   const [noResumeOpen, setNoResumeOpen] = useState(false)
 
+  // Scan limit modal state
+  const [scanLimitOpen, setScanLimitOpen] = useState(false)
+  const [pendingScanType, setPendingScanType] = useState<'run' | 'seedAndScan'>('run')
+  const [maxSources, setMaxSources] = useState(10)
+
   const enabledCount = sources?.filter(s => s.enabled).length ?? 0
   const totalCount = sources?.length ?? 0
   const displayedSources = showAllSources ? sources : sources?.slice(0, 12)
 
-  // Check if profile has a resume before allowing any scan.
-  // The backend stores the resume under the field name `resume_markdown`.
+  // Estimated token cost for display
+  const estimatedTokens = maxSources * AVG_JOBS_PER_SOURCE * TOKENS_PER_SOURCE
+  const estimatedCost = ((estimatedTokens / 1_000_000) * 0.15).toFixed(4)  // gpt-4o-mini input price
+
   async function checkResume(): Promise<boolean> {
     try {
       const profile = await profileApi.get()
@@ -57,21 +69,28 @@ export default function ScannerPage() {
       }
       return true
     } catch {
-      // If profile fetch fails, let backend enforce the check
       return true
     }
   }
 
-  async function handleRunScan() {
+  // Opens the scan limit modal after resume check
+  async function openScanLimitModal(type: 'run' | 'seedAndScan') {
     const hasResume = await checkResume()
     if (!hasResume) return
+    setPendingScanType(type)
+    // Default limit: 10 or total enabled count, whichever is smaller
+    setMaxSources(Math.min(10, enabledCount || 10))
+    setScanLimitOpen(true)
+  }
+
+  async function handleRunScan(limit: number) {
     setScanning(true)
     setScanResult(null)
     try {
-      await scannerApi.runScan()
+      await scannerApi.runScan(limit)
       await new Promise(r => setTimeout(r, 3000))
       await Promise.all([mutate('scan-sources'), mutate('scan-logs'), mutate('jobs')])
-      setScanResult({ sources_scanned: enabledCount })
+      setScanResult({ sources_scanned: limit })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error'
       if (msg.includes('no_resume')) {
@@ -86,10 +105,7 @@ export default function ScannerPage() {
     }
   }
 
-  async function handleSeedAndScan() {
-    const hasResume = await checkResume()
-    if (!hasResume) return
-
+  async function handleSeedAndScan(limit: number) {
     setSeedStatus('seeding')
     setSeedMsg('')
     try {
@@ -99,14 +115,14 @@ export default function ScannerPage() {
       await mutate('scan-sources')
 
       setSeedStatus('scanning')
-      await scannerApi.runScan()
+      await scannerApi.runScan(limit)
       await new Promise(r => setTimeout(r, 3000))
       await Promise.all([mutate('scan-sources'), mutate('scan-logs'), mutate('jobs')])
 
       setSeedStatus('done')
       setSeedMsg(
         `${seedRes.added > 0 ? seedRes.added + ' companies added. ' : 'All defaults already present. '}` +
-        `Scan started — check Jobs tab for results.`
+        `Scan started for ${limit} source(s) — check Jobs tab for results.`
       )
       setSeedMsgType('info')
     } catch (e: unknown) {
@@ -119,6 +135,16 @@ export default function ScannerPage() {
         setSeedMsg(`Error: ${msg}`)
         setSeedMsgType('error')
       }
+    }
+  }
+
+  // Called when user confirms from the limit modal
+  async function handleConfirmScan() {
+    setScanLimitOpen(false)
+    if (pendingScanType === 'run') {
+      await handleRunScan(maxSources)
+    } else {
+      await handleSeedAndScan(maxSources)
     }
   }
 
@@ -201,6 +227,108 @@ export default function ScannerPage() {
         </div>
       </Modal>
 
+      {/* Scan Limit Modal */}
+      <Modal open={scanLimitOpen} onClose={() => setScanLimitOpen(false)} title="Set Scan Limit">
+        <div className="space-y-5">
+          {/* Info banner */}
+          <div
+            className="flex items-start gap-3 p-3.5 rounded-xl"
+            style={{ background: 'var(--color-warning-highlight)' }}
+          >
+            <Coins size={16} className="shrink-0 mt-0.5" style={{ color: 'var(--color-warning)' }} />
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              Each source scanned triggers AI evaluation for every <strong>new</strong> job found.
+              Limit the number of sources to control OpenAI usage.
+            </p>
+          </div>
+
+          {/* Slider */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+                Max sources to scan
+              </label>
+              <span
+                className="text-2xl font-bold tabular-nums"
+                style={{ color: 'var(--color-primary)' }}
+              >
+                {maxSources}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={Math.max(enabledCount, 1)}
+              value={maxSources}
+              onChange={e => setMaxSources(Number(e.target.value))}
+              className="w-full accent-teal-500 cursor-pointer"
+            />
+            <div className="flex justify-between text-xs mt-1" style={{ color: 'var(--color-text-faint)' }}>
+              <span>1</span>
+              <span>{Math.max(enabledCount, 1)} (all enabled)</span>
+            </div>
+          </div>
+
+          {/* Number input alternative */}
+          <div className="flex items-center gap-3">
+            <label className="text-xs shrink-0" style={{ color: 'var(--color-text-muted)' }}>Or type exact number:</label>
+            <input
+              type="number"
+              min={1}
+              max={Math.max(enabledCount, 1)}
+              value={maxSources}
+              onChange={e => {
+                const v = Math.max(1, Math.min(Number(e.target.value), enabledCount || 1))
+                setMaxSources(v)
+              }}
+              className="field w-24 text-center"
+            />
+          </div>
+
+          {/* Cost estimate */}
+          <div
+            className="rounded-xl p-3.5 space-y-2"
+            style={{ background: 'var(--color-surface-offset)', border: '1px solid var(--color-border)' }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
+              Estimated usage
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <div className="text-base font-bold tabular-nums" style={{ color: 'var(--color-text)' }}>
+                  {maxSources}
+                </div>
+                <div className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>sources</div>
+              </div>
+              <div className="text-center">
+                <div className="text-base font-bold tabular-nums" style={{ color: 'var(--color-text)' }}>
+                  ~{(maxSources * AVG_JOBS_PER_SOURCE).toLocaleString()}
+                </div>
+                <div className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>jobs evaluated</div>
+              </div>
+              <div className="text-center">
+                <div className="text-base font-bold tabular-nums" style={{ color: 'var(--color-primary)' }}>
+                  ~${estimatedCost}
+                </div>
+                <div className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>est. cost (USD)</div>
+              </div>
+            </div>
+            <p className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>
+              * Only <strong>new unseen jobs</strong> are evaluated. Already-stored jobs are skipped. Actual cost may be lower.
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="ghost" size="sm" onClick={() => setScanLimitOpen(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" onClick={handleConfirmScan}>
+              <Play size={14} fill="currentColor" />
+              Start Scan ({maxSources} source{maxSources !== 1 ? 's' : ''})
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Hero: Scan Button */}
       <div
         className="rounded-2xl border p-6"
@@ -216,7 +344,7 @@ export default function ScannerPage() {
               <h2 className="text-base font-bold" style={{ color: 'var(--color-text)' }}>Find Jobs Across All Companies</h2>
             </div>
             <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              Scans all {enabledCount} enabled sources, deduplicates results, and AI-evaluates every new job against your profile — in one run.
+              Scans enabled sources, deduplicates results, and AI-evaluates every new job against your profile — in one run.
             </p>
             {scanResult && (
               <div className="flex items-center gap-3 mt-3">
@@ -230,12 +358,12 @@ export default function ScannerPage() {
               variant="primary"
               size="lg"
               disabled={scanning || enabledCount === 0}
-              onClick={handleRunScan}
+              onClick={() => openScanLimitModal('run')}
               className="min-w-[200px] justify-center"
             >
               {scanning
-                ? <><Loader2 size={16} className="animate-spin" /> Scanning all sources…</>
-                : <><Play size={16} fill="currentColor" /> Scan All &amp; Find Jobs</>
+                ? <><Loader2 size={16} className="animate-spin" /> Scanning…</>
+                : <><Play size={16} fill="currentColor" /> Scan &amp; Find Jobs</>
               }
             </Button>
             {scanning && (
@@ -264,7 +392,7 @@ export default function ScannerPage() {
               size="sm"
               variant="ghost"
               disabled={seedBusy}
-              onClick={handleSeedAndScan}
+              onClick={() => openScanLimitModal('seedAndScan')}
               title="Add all default companies and immediately scan for jobs"
             >
               {seedStatus === 'seeding' && <><Loader2 size={13} className="animate-spin" /> Adding companies…</>}
@@ -322,7 +450,7 @@ export default function ScannerPage() {
               Load 80+ pre-built companies and immediately scan for matching jobs.
             </p>
             <div className="flex gap-2">
-              <Button size="sm" variant="primary" disabled={seedBusy} onClick={handleSeedAndScan}>
+              <Button size="sm" variant="primary" disabled={seedBusy} onClick={() => openScanLimitModal('seedAndScan')}>
                 {seedStatus === 'seeding' && <><Loader2 size={13} className="animate-spin" /> Adding companies…</>}
                 {seedStatus === 'scanning' && <><Loader2 size={13} className="animate-spin" /> Scanning for jobs…</>}
                 {(seedStatus === 'idle' || seedStatus === 'done' || seedStatus === 'error') && <><RefreshCw size={13} /> Load All Defaults &amp; Scan</>}

@@ -2,6 +2,7 @@
 import hashlib
 import logging
 from datetime import datetime
+from typing import Optional
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.core.models import Job, ScanSource, ScanLog
@@ -77,7 +78,6 @@ DEFAULT_SOURCES = [
     # --- AI infra & LLMOps ---
     {"name": "Weights & Biases",  "source_type": "lever",      "company_name": "wandb"},
     {"name": "Langfuse",          "source_type": "ashby",      "company_name": "langfuse"},
-    {"name": "Arize AI",          "source_type": "greenhouse", "company_name": "arizeai"},
 
     # --- No-Code / Low-Code / Automation ---
     {"name": "n8n",               "source_type": "ashby",      "company_name": "n8n"},
@@ -127,9 +127,6 @@ DEFAULT_SOURCES = [
     {"name": "Hootsuite",         "source_type": "greenhouse", "company_name": "hootsuite"},
     {"name": "Klue",              "source_type": "ashby",      "company_name": "klue"},
     {"name": "Sanctuary AI",      "source_type": "lever",      "company_name": "sanctuary"},
-
-    # --- Iberia AI ---
-    {"name": "Amplemarket",       "source_type": "greenhouse", "company_name": "amplemarket"},
 ]
 
 # Deduplicate by (source_type, company_name) in case of duplicates above
@@ -183,15 +180,27 @@ async def seed_missing_defaults():
         return added
 
 
-async def run_full_scan() -> dict:
-    """Run a full scan of all enabled sources."""
+async def run_full_scan(max_sources: Optional[int] = None) -> dict:
+    """Run a scan of enabled sources.
+    
+    Args:
+        max_sources: If set, only scan this many enabled sources (picked in alphabetical order).
+                     None means scan all enabled sources.
+    """
     await seed_default_sources()
 
     async with AsyncSessionLocal() as db:
         sources_result = await db.execute(
             select(ScanSource).where(ScanSource.enabled == True)
         )
-        sources = sources_result.scalars().all()
+        all_sources = sources_result.scalars().all()
+
+    # Apply the cap if requested
+    if max_sources is not None and max_sources > 0:
+        sources = all_sources[:max_sources]
+        logger.info(f"Scan capped at {max_sources} sources (out of {len(all_sources)} enabled)")
+    else:
+        sources = all_sources
 
     total_new = 0
     total_found = 0

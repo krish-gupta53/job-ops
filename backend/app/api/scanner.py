@@ -19,6 +19,10 @@ class SourceCreate(BaseModel):
     url: Optional[str] = ""
 
 
+class ScanRunRequest(BaseModel):
+    max_sources: Optional[int] = None  # None = scan all enabled sources
+
+
 async def _require_resume(db: AsyncSession) -> None:
     """Raise 422 if the profile has no uploaded resume — scanning without one is useless."""
     result = await db.execute(select(Profile).limit(1))
@@ -74,14 +78,14 @@ async def delete_source(source_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/run")
-async def trigger_scan(db: AsyncSession = Depends(get_db)):
-    """Manually trigger a full scan across ALL enabled sources.
+async def trigger_scan(body: ScanRunRequest = ScanRunRequest(), db: AsyncSession = Depends(get_db)):
+    """Manually trigger a scan. max_sources caps how many enabled sources are scanned.
     Requires a resume to be uploaded first (evaluation needs it)."""
     await _require_resume(db)
     import asyncio
     from app.services.scanner_service import run_full_scan
-    asyncio.create_task(run_full_scan())
-    return {"message": "Scan started in background"}
+    asyncio.create_task(run_full_scan(max_sources=body.max_sources))
+    return {"message": "Scan started in background", "max_sources": body.max_sources}
 
 
 @router.post("/seed-defaults")
