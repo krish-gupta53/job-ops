@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 import logging
 import re
 from typing import Optional, Dict, Any
-from app.services.gemini_client import generate_lite
+from app.services.openai_client import generate_lite
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def extract_text_from_html(html: str) -> str:
 
 
 async def scrape_job_url(url: str) -> Optional[Dict[str, Any]]:
-    """Fetch a job URL and extract structured job data using Gemini Lite."""
+    """Fetch a job URL and extract structured job data using GPT-4o-mini."""
     html = await fetch_html(url)
     if not html:
         return None
