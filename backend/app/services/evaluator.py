@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.core.models import Job, Profile
-from app.services.openai_client import generate_flash  # ← switched from gemini
+from app.services.openai_client import generate_flash
 from app.services.resume_generator import generate_resume_variant
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,29 @@ def score_to_grade(score: float) -> str:
     elif score >= 2.0:
         return "D"
     return "F"
+
+
+def _to_str(value) -> str:
+    """Safely coerce any AI-returned value to a plain string for Text columns."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    # dict / list returned by AI — serialize to JSON string
+    return json.dumps(value)
+
+
+def _to_list(value) -> list:
+    """Safely coerce any AI-returned value to a list for JSON columns."""
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, list) else [value]
+        except Exception:
+            return [value]
+    return []
 
 
 async def evaluate_job(job_id: str) -> dict:
@@ -78,16 +101,18 @@ Provide a detailed evaluation. Return a JSON object with EXACTLY these keys:
   "score": <float 0.0-5.0>,
   "archetype": <string: one of [LLMOps, Agentic AI, Backend, Full-Stack, Data Engineering, ML Engineering, Product, Solutions Architecture, Startup Generalist, Other]>,
   "match_summary": <2-3 sentence summary of overall fit>,
-  "strengths": [<list of 3-5 specific strengths from candidate's background that match this role>],
-  "gaps": [<list of 2-4 areas where candidate falls short or risks>],
-  "keywords": [<list of 10-15 important keywords from the JD for ATS optimization>],
+  "strengths": [<list of 3-5 specific strengths from candidate background matching this role>],
+  "gaps": [<list of 2-4 areas where candidate falls short>],
+  "keywords": [<list of 10-15 important JD keywords for ATS>],
   "positioning_strategy": <2-3 sentences on how candidate should position themselves>,
   "comp_assessment": <1-2 sentences on salary competitiveness>,
-  "interview_prep": <2-3 bullet points of key topics to prepare>,
+  "interview_prep": [<list of 2-3 key topics to prepare as strings>],
   "recommendation": <string: one of [Strongly Apply, Apply, Consider, Skip, Hard Pass]>,
-  "full_report": <full markdown evaluation report with all sections>
+  "full_report": <full markdown evaluation report as a single string with all sections>
 }}
 
+IMPORTANT: interview_prep must be a JSON array of strings, not an object.
+full_report must be a plain markdown string, NOT a JSON object.
 Return only valid JSON. No markdown fences."""
 
         try:
@@ -97,12 +122,13 @@ Return only valid JSON. No markdown fences."""
 
             job.score = float(data.get("score", 0.0))
             job.grade = score_to_grade(job.score)
-            job.archetype = data.get("archetype", "")
-            job.match_summary = data.get("match_summary", "")
-            job.strengths = data.get("strengths", [])
-            job.gaps = data.get("gaps", [])
-            job.keywords = data.get("keywords", [])
-            job.evaluation_report = data.get("full_report", "")
+            job.archetype = _to_str(data.get("archetype", ""))
+            job.match_summary = _to_str(data.get("match_summary", ""))
+            job.strengths = _to_list(data.get("strengths", []))
+            job.gaps = _to_list(data.get("gaps", []))
+            job.keywords = _to_list(data.get("keywords", []))
+            # full_report must be a string — coerce dict/list to JSON string if AI misbehaves
+            job.evaluation_report = _to_str(data.get("full_report", ""))
             job.evaluated_at = datetime.utcnow()
 
             # Auto-shortlist if score >= 3.5
@@ -129,7 +155,7 @@ Return only valid JSON. No markdown fences."""
             }
 
         except json.JSONDecodeError as e:
-            logger.error(f"evaluate_job: JSON parse error for job {job_id}: {e}\nRaw response was: {raw[:500]}")
+            logger.error(f"evaluate_job: JSON parse error for job {job_id}: {e}\nRaw: {raw[:500]}")
             return {"error": "json_parse_failed", "job_id": job_id}
         except Exception as e:
             logger.error(f"evaluate_job: unexpected error for job {job_id}: {type(e).__name__}: {e}")

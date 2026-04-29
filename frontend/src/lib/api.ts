@@ -79,15 +79,19 @@ export const scannerApi = {
     request(`/api/scanner/sources/${id}/toggle`, { method: 'PATCH' }),
   deleteSource: (id: string): Promise<{ success: boolean }> =>
     request(`/api/scanner/sources/${id}`, { method: 'DELETE' }),
-  runScan: (maxSources?: number): Promise<{ message: string }> =>
+  runScan: (maxSources?: number): Promise<{ message: string; max_sources: number | null }> =>
     request('/api/scanner/run', {
       method: 'POST',
       body: JSON.stringify({ max_sources: maxSources ?? null }),
     }),
+  cancelScan: (): Promise<{ cancelled: boolean; message: string }> =>
+    request('/api/scanner/cancel', { method: 'POST' }),
+  scanStatus: (): Promise<{ running: boolean }> =>
+    request('/api/scanner/status'),
   seedDefaults: (): Promise<{ added: number; message: string }> =>
     request('/api/scanner/seed-defaults', { method: 'POST' }),
-  logs: (limit = 20): Promise<import('@/types').ScanLog[]> =>
-    request(`/api/scanner/logs?limit=${limit}`),
+  logs: (limit?: number): Promise<import('@/types').ScanLog[]> =>
+    request(`/api/scanner/logs?limit=${limit ?? 20}`),
 }
 
 // ─── Apply ───────────────────────────────────────────────────────────────────
