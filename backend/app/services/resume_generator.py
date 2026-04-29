@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.core.models import Job, Profile, ResumeVariant
-from app.services.gemini_client import generate_flash
+from app.services.openai_client import generate_flash  # ← switched from gemini
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +17,14 @@ async def generate_resume_variant(job_id: str) -> dict:
         job_result = await db.execute(select(Job).where(Job.id == job_id))
         job = job_result.scalar_one_or_none()
         if not job:
-            return {}
+            logger.error(f"generate_resume_variant: job {job_id} not found")
+            return {"error": "job_not_found", "job_id": job_id}
 
         profile_result = await db.execute(select(Profile).limit(1))
         profile = profile_result.scalar_one_or_none()
         if not profile or not profile.resume_markdown:
-            logger.warning("No profile resume for tailoring")
-            return {}
+            logger.warning(f"generate_resume_variant: no resume in profile — skipping job {job_id}")
+            return {"error": "no_resume", "job_id": job_id}
 
         keywords = ", ".join(job.keywords or [])
         prompt = f"""You are a professional resume writer. Tailor this resume for the specific job posting.
@@ -102,9 +103,12 @@ Return only valid JSON. No markdown fences."""
                 "keywords_injected": variant.keywords_injected,
             }
 
+        except json.JSONDecodeError as e:
+            logger.error(f"generate_resume_variant: JSON parse error for job {job_id}: {e}")
+            return {"error": "json_parse_failed", "job_id": job_id}
         except Exception as e:
-            logger.error(f"Resume generation failed for job {job_id}: {e}")
-            return {}
+            logger.error(f"generate_resume_variant: unexpected error for job {job_id}: {type(e).__name__}: {e}")
+            return {"error": "generation_failed", "detail": str(e), "job_id": job_id}
 
 
 async def generate_pdf_from_markdown(resume_markdown: str, output_path: str) -> bool:

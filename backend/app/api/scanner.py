@@ -6,7 +6,7 @@ from typing import Optional
 import logging
 
 from app.core.database import get_db
-from app.core.models import ScanSource, ScanLog
+from app.core.models import ScanSource, ScanLog, Profile
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -17,6 +17,17 @@ class SourceCreate(BaseModel):
     source_type: str   # greenhouse, lever, ashby, custom
     company_name: str
     url: Optional[str] = ""
+
+
+async def _require_resume(db: AsyncSession) -> None:
+    """Raise 422 if the profile has no uploaded resume — scanning without one is useless."""
+    result = await db.execute(select(Profile).limit(1))
+    profile = result.scalar_one_or_none()
+    if not profile or not profile.resume_markdown:
+        raise HTTPException(
+            status_code=422,
+            detail="no_resume",
+        )
 
 
 @router.get("/sources")
@@ -63,8 +74,10 @@ async def delete_source(source_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/run")
-async def trigger_scan():
-    """Manually trigger a full scan across ALL enabled sources (background task)."""
+async def trigger_scan(db: AsyncSession = Depends(get_db)):
+    """Manually trigger a full scan across ALL enabled sources.
+    Requires a resume to be uploaded first (evaluation needs it)."""
+    await _require_resume(db)
     import asyncio
     from app.services.scanner_service import run_full_scan
     asyncio.create_task(run_full_scan())
@@ -72,9 +85,10 @@ async def trigger_scan():
 
 
 @router.post("/seed-defaults")
-async def seed_defaults():
+async def seed_defaults(db: AsyncSession = Depends(get_db)):
     """Add any default companies that are missing from the DB.
-    Safe to call multiple times — only inserts what is not already present."""
+    Requires a resume to be uploaded first."""
+    await _require_resume(db)
     from app.services.scanner_service import seed_missing_defaults
     added = await seed_missing_defaults()
     return {"added": added, "message": f"{added} new default source(s) added."}

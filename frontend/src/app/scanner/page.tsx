@@ -1,7 +1,8 @@
 'use client'
 import useSWR, { mutate } from 'swr'
 import { useState } from 'react'
-import { scannerApi } from '@/lib/api'
+import { useRouter } from 'next/navigation'
+import { scannerApi, profileApi } from '@/lib/api'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -9,9 +10,10 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { timeAgo } from '@/lib/utils'
 import type { ScanSource, ScanLog } from '@/types'
 import {
-  Radar, Plus, Play, Trash2, ToggleLeft, ToggleRight,
+  Plus, Play, Trash2, ToggleLeft, ToggleRight,
   CheckCircle2, XCircle, Loader2, Clock, Globe,
-  Zap, RefreshCw, Building2, ChevronDown, ChevronUp
+  Zap, RefreshCw, Building2, ChevronDown, ChevronUp,
+  AlertTriangle, FileText, ArrowRight
 } from 'lucide-react'
 
 const SOURCE_TYPES = ['greenhouse', 'lever', 'ashby', 'workday', 'custom']
@@ -24,25 +26,44 @@ const SOURCE_TYPE_HINTS: Record<string, string> = {
   custom: 'any ATS or careers page URL',
 }
 
-// Seed status union so TypeScript knows all possible values
 type SeedStatus = 'idle' | 'seeding' | 'scanning' | 'done' | 'error'
 
 export default function ScannerPage() {
+  const router = useRouter()
   const { data: sources, isLoading: srcLoading } = useSWR<ScanSource[]>('scan-sources', scannerApi.sources)
   const { data: logs, isLoading: logsLoading } = useSWR<ScanLog[]>('scan-logs', () => scannerApi.logs(15))
   const [addOpen, setAddOpen] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [seedStatus, setSeedStatus] = useState<SeedStatus>('idle')
   const [seedMsg, setSeedMsg] = useState('')
+  const [seedMsgType, setSeedMsgType] = useState<'info' | 'error' | 'warning'>('info')
   const [deleting, setDeleting] = useState<string | null>(null)
   const [scanResult, setScanResult] = useState<{ sources_scanned: number } | null>(null)
   const [showAllSources, setShowAllSources] = useState(false)
+  const [noResumeOpen, setNoResumeOpen] = useState(false)
 
   const enabledCount = sources?.filter(s => s.enabled).length ?? 0
   const totalCount = sources?.length ?? 0
   const displayedSources = showAllSources ? sources : sources?.slice(0, 12)
 
+  // Check if profile has a resume before allowing any scan
+  async function checkResume(): Promise<boolean> {
+    try {
+      const profile = await profileApi.get()
+      if (!profile.resume_markdown) {
+        setNoResumeOpen(true)
+        return false
+      }
+      return true
+    } catch {
+      // If profile fetch fails, let backend enforce the check
+      return true
+    }
+  }
+
   async function handleRunScan() {
+    const hasResume = await checkResume()
+    if (!hasResume) return
     setScanning(true)
     setScanResult(null)
     try {
@@ -50,42 +71,66 @@ export default function ScannerPage() {
       await new Promise(r => setTimeout(r, 3000))
       await Promise.all([mutate('scan-sources'), mutate('scan-logs'), mutate('jobs')])
       setScanResult({ sources_scanned: enabledCount })
-    } catch (e) {
-      console.error(e)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      if (msg.includes('no_resume')) {
+        setNoResumeOpen(true)
+      } else {
+        setSeedMsg(`Scan failed: ${msg}`)
+        setSeedMsgType('error')
+        setSeedStatus('error')
+      }
     } finally {
       setScanning(false)
     }
   }
 
-  // Step 1: seed all default companies into DB
-  // Step 2: immediately trigger a full scan so jobs are fetched
   async function handleSeedAndScan() {
+    const hasResume = await checkResume()
+    if (!hasResume) return
+
     setSeedStatus('seeding')
     setSeedMsg('')
     try {
       const seedRes = await scannerApi.seedDefaults()
       setSeedMsg(`${seedRes.added} new companies added. Starting scan…`)
+      setSeedMsgType('info')
       await mutate('scan-sources')
 
-      // Immediately kick off a full scan so jobs are fetched right away
       setSeedStatus('scanning')
       await scannerApi.runScan()
-      // Give backend a moment then refresh everything
       await new Promise(r => setTimeout(r, 3000))
       await Promise.all([mutate('scan-sources'), mutate('scan-logs'), mutate('jobs')])
 
       setSeedStatus('done')
-      setSeedMsg(`${seedRes.added > 0 ? seedRes.added + ' companies added. ' : 'All defaults already present. '}Scan started — check Jobs tab for results.`)
-    } catch (e) {
-      setSeedStatus('error')
-      setSeedMsg('Something went wrong. Check the console.')
-      console.error(e)
+      setSeedMsg(
+        `${seedRes.added > 0 ? seedRes.added + ' companies added. ' : 'All defaults already present. '}` +
+        `Scan started — check Jobs tab for results.`
+      )
+      setSeedMsgType('info')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      if (msg.includes('no_resume')) {
+        setSeedStatus('idle')
+        setNoResumeOpen(true)
+      } else {
+        setSeedStatus('error')
+        setSeedMsg(`Error: ${msg}`)
+        setSeedMsgType('error')
+      }
     }
   }
 
   async function handleToggle(id: string) {
-    await scannerApi.toggleSource(id)
-    await mutate('scan-sources')
+    try {
+      await scannerApi.toggleSource(id)
+      await mutate('scan-sources')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Toggle failed'
+      setSeedMsg(`Could not toggle source: ${msg}`)
+      setSeedMsgType('error')
+      setSeedStatus('error')
+    }
   }
 
   async function handleDelete(id: string) {
@@ -93,6 +138,11 @@ export default function ScannerPage() {
     try {
       await scannerApi.deleteSource(id)
       await mutate('scan-sources')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Delete failed'
+      setSeedMsg(`Could not delete source: ${msg}`)
+      setSeedMsgType('error')
+      setSeedStatus('error')
     } finally {
       setDeleting(null)
     }
@@ -100,10 +150,57 @@ export default function ScannerPage() {
 
   const seedBusy = seedStatus === 'seeding' || seedStatus === 'scanning'
 
+  const bannerColor = {
+    info: { bg: 'var(--color-primary-highlight)', text: 'var(--color-primary)' },
+    warning: { bg: 'var(--color-warning-highlight)', text: 'var(--color-warning)' },
+    error: { bg: 'var(--color-error-highlight)', text: 'var(--color-error)' },
+  }[seedMsgType]
+
   return (
     <div className="space-y-8">
 
-      {/* Hero: Big Scan Button */}
+      {/* No-Resume Gate Modal */}
+      <Modal open={noResumeOpen} onClose={() => setNoResumeOpen(false)} title="Resume Required">
+        <div className="space-y-4">
+          <div
+            className="flex items-start gap-3 p-4 rounded-xl"
+            style={{ background: 'var(--color-warning-highlight)' }}
+          >
+            <AlertTriangle size={18} className="shrink-0 mt-0.5" style={{ color: 'var(--color-warning)' }} />
+            <div>
+              <p className="text-sm font-semibold mb-1" style={{ color: 'var(--color-text)' }}>Upload your resume first</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                Job-ops needs your resume to evaluate every job against your profile.
+                Without it, scanning fetches raw listings but cannot score or shortlist anything.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 pt-1">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: 'var(--color-primary-highlight)' }}
+            >
+              <FileText size={18} style={{ color: 'var(--color-primary)' }} />
+            </div>
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>Go to Profile &rarr; Upload Resume</p>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Supports PDF, DOCX, MD, TXT</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setNoResumeOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => { setNoResumeOpen(false); router.push('/profile') }}
+            >
+              <ArrowRight size={14} /> Go to Profile
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Hero: Scan Button */}
       <div
         className="rounded-2xl border p-6"
         style={{
@@ -142,7 +239,7 @@ export default function ScannerPage() {
             </Button>
             {scanning && (
               <p className="text-xs text-center" style={{ color: 'var(--color-text-faint)' }}>
-                Running in background — check Jobs tab for results
+                Running in background — check Jobs tab
               </p>
             )}
           </div>
@@ -179,16 +276,22 @@ export default function ScannerPage() {
           </div>
         </div>
 
-        {/* Seed status message */}
+        {/* Status banner */}
         {seedMsg && (
           <div
-            className="mb-4 px-4 py-2.5 rounded-lg text-sm"
-            style={{
-              background: seedStatus === 'error' ? 'var(--color-error-highlight)' : 'var(--color-primary-highlight)',
-              color: seedStatus === 'error' ? 'var(--color-error)' : 'var(--color-primary)',
-            }}
+            className="mb-4 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2"
+            style={{ background: bannerColor.bg, color: bannerColor.text }}
           >
+            {seedMsgType === 'error' && <XCircle size={14} className="shrink-0" />}
+            {seedMsgType === 'warning' && <AlertTriangle size={14} className="shrink-0" />}
+            {seedMsgType === 'info' && <CheckCircle2 size={14} className="shrink-0" />}
             {seedMsg}
+            <button
+              className="ml-auto text-xs opacity-60 hover:opacity-100"
+              onClick={() => { setSeedMsg(''); setSeedStatus('idle') }}
+            >
+              ×
+            </button>
           </div>
         )}
 
@@ -243,7 +346,6 @@ export default function ScannerPage() {
                     transition: 'opacity 200ms, border-color 200ms',
                   }}
                 >
-                  {/* Icon */}
                   <div
                     className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold uppercase"
                     style={{
@@ -253,8 +355,6 @@ export default function ScannerPage() {
                   >
                     {src.source_type.slice(0, 2)}
                   </div>
-
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm truncate" style={{ color: 'var(--color-text)' }}>{src.name}</div>
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -266,8 +366,6 @@ export default function ScannerPage() {
                       )}
                     </div>
                   </div>
-
-                  {/* Actions */}
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => handleToggle(src.id)}
@@ -284,25 +382,19 @@ export default function ScannerPage() {
                       title="Remove"
                       disabled={deleting === src.id}
                     >
-                      {deleting === src.id
-                        ? <Loader2 size={14} className="animate-spin" />
-                        : <Trash2 size={14} />}
+                      {deleting === src.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                     </button>
                   </div>
                 </div>
               ))}
             </div>
-
             {sources.length > 12 && (
               <button
                 className="w-full mt-3 py-2.5 rounded-xl border text-sm flex items-center justify-center gap-2 transition-colors"
                 style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)', background: 'var(--color-surface)' }}
                 onClick={() => setShowAllSources(v => !v)}
               >
-                {showAllSources
-                  ? <><ChevronUp size={14} /> Show less</>
-                  : <><ChevronDown size={14} /> Show all {sources.length} companies</>
-                }
+                {showAllSources ? <><ChevronUp size={14} /> Show less</> : <><ChevronDown size={14} /> Show all {sources.length} companies</>}
               </button>
             )}
           </>
@@ -315,11 +407,7 @@ export default function ScannerPage() {
           <Clock size={15} style={{ color: 'var(--color-primary)' }} />
           <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Recent Scan Logs</h3>
         </div>
-
-        <div
-          className="rounded-xl border overflow-hidden"
-          style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-        >
+        <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
           {logsLoading ? (
             <div className="p-4 space-y-3">
               {Array(4).fill(0).map((_, i) => (
@@ -332,15 +420,14 @@ export default function ScannerPage() {
             </div>
           ) : !logs?.length ? (
             <div className="p-8 text-center">
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No scans run yet. Hit &quot;Load All Defaults &amp; Scan&quot; or &quot;Scan All &amp; Find Jobs&quot; above.</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No scans run yet. Hit &quot;Load All Defaults &amp; Scan&quot; above.</p>
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--color-divider)' }}>
                   {['Status', 'Jobs Found', 'New Jobs', 'Started', 'Duration'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-medium"
-                      style={{ color: 'var(--color-text-muted)' }}>{h}</th>
+                    <th key={h} className="text-left px-4 py-3 text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -350,10 +437,7 @@ export default function ScannerPage() {
                     ? Math.round((new Date(log.finished_at).getTime() - new Date(log.started_at).getTime()) / 1000)
                     : null
                   return (
-                    <tr
-                      key={log.id}
-                      style={{ borderBottom: i < logs.length - 1 ? '1px solid var(--color-divider)' : 'none' }}
-                    >
+                    <tr key={log.id} style={{ borderBottom: i < logs.length - 1 ? '1px solid var(--color-divider)' : 'none' }}>
                       <td className="px-4 py-3">
                         <span className="flex items-center gap-1.5">
                           {log.status === 'completed' && <CheckCircle2 size={14} className="text-emerald-400" />}
@@ -363,14 +447,10 @@ export default function ScannerPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs tabular" style={{ color: 'var(--color-text)' }}>{log.jobs_found ?? 0}</td>
-                      <td className="px-4 py-3">
-                        <Badge className="text-teal-400 bg-teal-400/10">{log.jobs_new ?? 0} new</Badge>
-                      </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                        {timeAgo(log.started_at)}
-                      </td>
+                      <td className="px-4 py-3"><Badge className="text-teal-400 bg-teal-400/10">{log.jobs_new ?? 0} new</Badge></td>
+                      <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>{timeAgo(log.started_at)}</td>
                       <td className="px-4 py-3 text-xs tabular" style={{ color: 'var(--color-text-faint)' }}>
-                        {duration !== null ? `${duration}s` : '\u2014'}
+                        {duration !== null ? `${duration}s` : '—'}
                       </td>
                     </tr>
                   )
@@ -415,20 +495,13 @@ function AddSourceForm({ onSuccess }: { onSuccess: () => void }) {
         <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
           Company Name <span style={{ color: 'var(--color-error)' }}>*</span>
         </label>
-        <input
-          className="field"
-          placeholder="e.g. Anthropic"
-          value={form.name}
-          onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-        />
+        <input className="field" placeholder="e.g. Anthropic" value={form.name}
+          onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
       </div>
       <div>
         <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>ATS Platform</label>
-        <select
-          className="field"
-          value={form.source_type}
-          onChange={e => setForm(f => ({ ...f, source_type: e.target.value }))}
-        >
+        <select className="field" value={form.source_type}
+          onChange={e => setForm(f => ({ ...f, source_type: e.target.value }))}>
           {SOURCE_TYPES.map(t => <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
         </select>
         <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-faint)' }}>
@@ -439,12 +512,10 @@ function AddSourceForm({ onSuccess }: { onSuccess: () => void }) {
         <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
           Company Slug <span style={{ color: 'var(--color-error)' }}>*</span>
         </label>
-        <input
-          className="field"
+        <input className="field"
           placeholder={form.source_type === 'greenhouse' ? 'e.g. anthropic' : form.source_type === 'lever' ? 'e.g. mistral' : 'e.g. elevenlabs'}
           value={form.company_name}
-          onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
-        />
+          onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} />
         <p className="text-[10px] mt-1" style={{ color: 'var(--color-text-faint)' }}>
           The last part of the URL: {form.source_type === 'greenhouse' ? 'job-boards.greenhouse.io/' : form.source_type === 'lever' ? 'jobs.lever.co/' : 'jobs.ashbyhq.com/'}
           <strong>{form.company_name || 'your-slug-here'}</strong>
@@ -452,12 +523,8 @@ function AddSourceForm({ onSuccess }: { onSuccess: () => void }) {
       </div>
       <div>
         <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>Custom URL (optional)</label>
-        <input
-          className="field"
-          placeholder="https://job-boards.greenhouse.io/yourcompany"
-          value={form.url}
-          onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-        />
+        <input className="field" placeholder="https://job-boards.greenhouse.io/yourcompany" value={form.url}
+          onChange={e => setForm(f => ({ ...f, url: e.target.value }))} />
       </div>
       {error && <p className="text-xs" style={{ color: 'var(--color-error)' }}>{error}</p>}
       <div className="flex gap-2 justify-end pt-2">

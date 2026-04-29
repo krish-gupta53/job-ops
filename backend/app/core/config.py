@@ -3,13 +3,11 @@ from typing import Optional
 
 
 class Settings(BaseSettings):
-    # AI
-    GEMINI_API_KEY: str
-    GEMINI_LITE_MODEL: str = "gemini-2.5-flash-lite-preview-06-17"
-    GEMINI_FLASH_MODEL: str = "gemini-2.5-flash-preview-05-20"
+    # AI - OpenAI
+    OPENAI_API_KEY: str
+    OPENAI_MODEL: str = "gpt-4o-mini"          # used for both lite and flash tasks
 
-    # Database — default path is inside /app/data which is the mounted Docker volume.
-    # This ensures the SQLite file survives container restarts.
+    # Database
     DATABASE_URL: str = "sqlite:////app/data/jobops.db"
 
     # App

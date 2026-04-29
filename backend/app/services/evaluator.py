@@ -1,4 +1,4 @@
-"""AI evaluation engine: score + grade + report for each job using Gemini Flash."""
+"""AI evaluation engine: score + grade + report for each job using OpenAI gpt-4o-mini."""
 import json
 import re
 import logging
@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.core.models import Job, Profile
-from app.services.gemini_client import generate_flash
+from app.services.openai_client import generate_flash  # ← switched from gemini
 from app.services.resume_generator import generate_resume_variant
 
 logger = logging.getLogger(__name__)
@@ -30,14 +30,17 @@ async def evaluate_job(job_id: str) -> dict:
         job_result = await db.execute(select(Job).where(Job.id == job_id))
         job = job_result.scalar_one_or_none()
         if not job:
-            logger.error(f"Job {job_id} not found for evaluation")
-            return {}
+            logger.error(f"evaluate_job: job {job_id} not found")
+            return {"error": "job_not_found", "job_id": job_id}
 
         profile_result = await db.execute(select(Profile).limit(1))
         profile = profile_result.scalar_one_or_none()
-        if not profile or not profile.resume_markdown:
-            logger.warning("No profile/resume found - skipping AI evaluation")
-            return {}
+        if not profile:
+            logger.warning("evaluate_job: no profile row in DB — skipping")
+            return {"error": "no_profile", "job_id": job_id}
+        if not profile.resume_markdown:
+            logger.warning("evaluate_job: profile exists but resume_markdown is empty — skipping")
+            return {"error": "no_resume", "job_id": job_id}
 
         prompt = f"""You are an expert career coach and recruiter. Evaluate this job against the candidate's profile.
 
@@ -125,6 +128,9 @@ Return only valid JSON. No markdown fences."""
                 "status": job.status,
             }
 
+        except json.JSONDecodeError as e:
+            logger.error(f"evaluate_job: JSON parse error for job {job_id}: {e}\nRaw response was: {raw[:500]}")
+            return {"error": "json_parse_failed", "job_id": job_id}
         except Exception as e:
-            logger.error(f"Evaluation failed for job {job_id}: {e}")
-            return {}
+            logger.error(f"evaluate_job: unexpected error for job {job_id}: {type(e).__name__}: {e}")
+            return {"error": "evaluation_failed", "detail": str(e), "job_id": job_id}
