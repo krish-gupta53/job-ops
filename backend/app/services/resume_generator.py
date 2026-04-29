@@ -11,6 +11,13 @@ from app.services.openai_client import generate_flash  # ← switched from gemin
 logger = logging.getLogger(__name__)
 
 
+def _to_str(value) -> str:
+    """Coerce a value to string — handles cases where AI returns a list instead of a string."""
+    if isinstance(value, list):
+        return "\n".join(f"- {item}" for item in value)
+    return str(value) if value is not None else ""
+
+
 async def generate_resume_variant(job_id: str) -> dict:
     """Generate a tailored resume variant for a specific job."""
     async with AsyncSessionLocal() as db:
@@ -51,7 +58,7 @@ Job Description Summary:
 Return a JSON object with:
 {{
   "tailored_resume": <full tailored resume in markdown>,
-  "changes_summary": <brief bullet list of what was changed and why>,
+  "changes_summary": <a single string (NOT a list) briefly describing what was changed and why>,
   "keywords_injected": [<list of keywords that were added/highlighted>]
 }}
 
@@ -62,6 +69,13 @@ Return only valid JSON. No markdown fences."""
             raw = re.sub(r'^```json\s*|^```\s*|\s*```$', '', raw.strip(), flags=re.MULTILINE)
             data = json.loads(raw)
 
+            # Safely coerce fields — AI sometimes returns a list for changes_summary
+            tailored_resume = _to_str(data.get("tailored_resume", ""))
+            changes_summary = _to_str(data.get("changes_summary", ""))
+            keywords_injected = data.get("keywords_injected", [])
+            if not isinstance(keywords_injected, list):
+                keywords_injected = [str(keywords_injected)]
+
             # Check if variant already exists for this job
             existing = await db.execute(
                 select(ResumeVariant).where(ResumeVariant.job_id == job_id)
@@ -69,18 +83,18 @@ Return only valid JSON. No markdown fences."""
             variant = existing.scalar_one_or_none()
 
             if variant:
-                variant.content_markdown = data.get("tailored_resume", "")
-                variant.changes_summary = data.get("changes_summary", "")
-                variant.keywords_injected = data.get("keywords_injected", [])
+                variant.content_markdown = tailored_resume
+                variant.changes_summary = changes_summary
+                variant.keywords_injected = keywords_injected
                 variant.generated_at = datetime.utcnow()
             else:
                 variant = ResumeVariant(
                     job_id=job_id,
                     job_title=job.title,
                     company=job.company,
-                    content_markdown=data.get("tailored_resume", ""),
-                    changes_summary=data.get("changes_summary", ""),
-                    keywords_injected=data.get("keywords_injected", []),
+                    content_markdown=tailored_resume,
+                    changes_summary=changes_summary,
+                    keywords_injected=keywords_injected,
                 )
                 db.add(variant)
 
