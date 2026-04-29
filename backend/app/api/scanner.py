@@ -64,11 +64,27 @@ async def delete_source(source_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/run")
 async def trigger_scan():
-    """Manually trigger a full scan (runs in background)."""
+    """Manually trigger a full scan across ALL enabled sources (background task)."""
     import asyncio
     from app.services.scanner_service import run_full_scan
     asyncio.create_task(run_full_scan())
     return {"message": "Scan started in background"}
+
+
+@router.post("/seed-defaults")
+async def seed_defaults():
+    """Add any default companies that are missing from the DB.
+    Safe to call multiple times — only inserts what is not already present."""
+    from app.services.scanner_service import seed_missing_defaults
+    added = await seed_missing_defaults()
+    return {"added": added, "message": f"{added} new default source(s) added."}
+
+
+@router.get("/defaults")
+async def list_defaults():
+    """Return the full list of built-in default companies (for UI preview)."""
+    from app.services.scanner_service import DEFAULT_SOURCES
+    return DEFAULT_SOURCES
 
 
 @router.get("/logs")
