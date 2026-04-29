@@ -49,10 +49,8 @@ export default function ScannerPage() {
     setScanResult(null)
     try {
       await scannerApi.runScan()
-      // Scan runs in background — wait a moment then refresh logs
       await new Promise(r => setTimeout(r, 3000))
       await Promise.all([mutate('scan-sources'), mutate('scan-logs'), mutate('jobs')])
-      // Show a generic "started" result since the scan is async
       setScanResult({ total_found: 0, total_new: 0, sources_scanned: enabledCount })
     } catch (e) {
       console.error(e)
@@ -235,7 +233,7 @@ export default function ScannerPage() {
                     <div className="font-semibold text-sm truncate" style={{ color: 'var(--color-text)' }}>{src.name}</div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <Badge className="text-zinc-400 bg-zinc-400/10 capitalize text-[10px]">{src.source_type}</Badge>
-                      {src.jobs_found_total > 0 && (
+                      {(src.jobs_found_total ?? 0) > 0 && (
                         <span className="text-[10px] tabular" style={{ color: 'var(--color-text-faint)' }}>
                           {src.jobs_found_total} found
                         </span>
