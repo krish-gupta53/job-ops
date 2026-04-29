@@ -48,6 +48,7 @@ COPY . .
 # so jobops.db will persist across container restarts.
 RUN mkdir -p data output/resumes output/reports
 
-EXPOSE 8000
+EXPOSE ${PORT:-8000}
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form so $PORT env var is expanded by the shell (Railway injects $PORT)
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
