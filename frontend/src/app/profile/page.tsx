@@ -56,8 +56,8 @@ export default function ProfilePage() {
       const res = await profileApi.uploadResume(file) as { message?: string; characters?: number }
       setUploadMsg(`\u2713 Uploaded (${res.characters?.toLocaleString() ?? '?'} characters extracted)`)
       await mutate('profile')
-      // clear local override for resume_text so fresh server data shows
-      setForm(f => { const n = { ...f }; delete n.resume_text; return n })
+      // clear local override for resume_markdown so fresh server data shows
+      setForm(f => { const n = { ...f }; delete (n as Record<string, unknown>).resume_markdown; return n })
       setResumeEditMode(false)
     } catch {
       setUploadMsg('Upload failed. Please try again.')
@@ -83,8 +83,8 @@ export default function ProfilePage() {
     return Array.isArray(v) ? v.join('\n') : String(v)
   }
 
-  // resume_text is the correct field name in the Profile type
-  const resumeText = (val('resume_text') as string | undefined) ?? ''
+  // FIX: use resume_markdown (correct backend field name)
+  const resumeText = (val('resume_markdown') as string | undefined) ?? ''
   const dirty = Object.keys(form).length > 0
 
   return (
@@ -127,26 +127,27 @@ export default function ProfilePage() {
             >
               <Upload size={24} className="mb-2" style={{ color: 'var(--color-text-faint)' }} />
               <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
-                {uploading ? 'Uploading\u2026' : resumeText ? 'Replace resume (PDF or DOCX)' : 'Upload PDF or DOCX'}
+                {uploading ? 'Uploading\u2026' : resumeText ? 'Replace resume' : 'Upload Resume'}
               </p>
               <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                Drag and drop or click to browse
+                PDF, DOCX, MD, or TXT &mdash; drag and drop or click to browse
               </p>
               {uploadMsg && (
                 <p className="text-xs mt-2" style={{
                   color: uploadMsg.includes('fail') ? 'var(--color-error)' : 'var(--color-success)'
                 }}>{uploadMsg}</p>
               )}
+              {/* FIX: added .md and .txt to accepted file types */}
               <input
                 ref={fileRef}
                 type="file"
-                accept=".pdf,.docx"
+                accept=".pdf,.docx,.md,.txt"
                 className="hidden"
                 onChange={handleUpload}
               />
             </div>
 
-            {/* Resume content panel — shown when resume_text exists */}
+            {/* Resume content panel — shown when resume_markdown exists */}
             {resumeText ? (
               <div className="mt-4 rounded-xl border" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-offset)' }}>
                 {/* Toolbar */}
@@ -156,7 +157,7 @@ export default function ProfilePage() {
                 >
                   <div className="flex items-center gap-2">
                     <FileText size={14} style={{ color: 'var(--color-primary)' }} />
-                    <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Extracted Resume Text</span>
+                    <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Resume Content</span>
                     <Badge className="text-zinc-400 bg-zinc-400/10 text-[10px]">
                       {resumeText.length.toLocaleString()} chars
                     </Badge>
@@ -180,7 +181,7 @@ export default function ProfilePage() {
                     className="w-full bg-transparent text-xs font-mono outline-none p-4 resize-y"
                     style={{ color: 'var(--color-text)', minHeight: 320 }}
                     value={resumeText}
-                    onChange={e => set('resume_text', e.target.value)}
+                    onChange={e => set('resume_markdown', e.target.value)}
                     spellCheck={false}
                   />
                 ) : (
@@ -194,7 +195,7 @@ export default function ProfilePage() {
               </div>
             ) : (
               <p className="text-xs mt-3 text-center" style={{ color: 'var(--color-text-faint)' }}>
-                No resume uploaded yet. Upload a PDF or DOCX above.
+                No resume uploaded yet. Upload a PDF, DOCX, MD, or TXT file above.
               </p>
             )}
           </Section>
