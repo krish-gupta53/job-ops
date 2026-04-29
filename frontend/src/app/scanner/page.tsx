@@ -46,11 +46,12 @@ export default function ScannerPage() {
   const totalCount = sources?.length ?? 0
   const displayedSources = showAllSources ? sources : sources?.slice(0, 12)
 
-  // Check if profile has a resume before allowing any scan
+  // Check if profile has a resume before allowing any scan.
+  // The backend stores the resume under the field name `resume_markdown`.
   async function checkResume(): Promise<boolean> {
     try {
       const profile = await profileApi.get()
-      if (!profile.resume_text) {
+      if (!profile.resume_markdown && !profile.resume_text) {
         setNoResumeOpen(true)
         return false
       }

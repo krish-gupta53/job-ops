@@ -132,8 +132,9 @@ export interface Profile {
   max_salary?: number
   salary_currency?: string
   open_to_relocation?: boolean
-  // Resume
-  resume_text?: string
+  // Resume — resume_markdown is the actual backend field name
+  resume_markdown?: string
+  resume_text?: string  // alias kept for backwards compat
   created_at?: string
   updated_at?: string
 }
