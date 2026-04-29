@@ -8,8 +8,9 @@ class Settings(BaseSettings):
     GEMINI_LITE_MODEL: str = "gemini-2.5-flash-lite-preview-06-17"
     GEMINI_FLASH_MODEL: str = "gemini-2.5-flash-preview-05-20"
 
-    # Database
-    DATABASE_URL: str = "sqlite:///./jobops.db"
+    # Database — default path is inside /app/data which is the mounted Docker volume.
+    # This ensures the SQLite file survives container restarts.
+    DATABASE_URL: str = "sqlite:////app/data/jobops.db"
 
     # App
     SECRET_KEY: str = "dev-secret-key"

@@ -44,7 +44,8 @@ RUN playwright install chromium
 
 COPY . .
 
-# Create data directories
+# Create data + output dirs. /app/data is where the Docker volume is mounted,
+# so jobops.db will persist across container restarts.
 RUN mkdir -p data output/resumes output/reports
 
 EXPOSE 8000
