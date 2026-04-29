@@ -50,7 +50,7 @@ export default function ScannerPage() {
   async function checkResume(): Promise<boolean> {
     try {
       const profile = await profileApi.get()
-      if (!profile.resume_markdown) {
+      if (!profile.resume_text) {
         setNoResumeOpen(true)
         return false
       }
