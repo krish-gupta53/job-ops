@@ -56,8 +56,8 @@ export default function ProfilePage() {
       const res = await profileApi.uploadResume(file) as { message?: string; characters?: number }
       setUploadMsg(`\u2713 Uploaded (${res.characters?.toLocaleString() ?? '?'} characters extracted)`)
       await mutate('profile')
-      // clear any local override so fresh server data is shown
-      setForm(f => { const n = { ...f }; delete n.resume_markdown; return n })
+      // clear local override for resume_text so fresh server data shows
+      setForm(f => { const n = { ...f }; delete n.resume_text; return n })
       setResumeEditMode(false)
     } catch {
       setUploadMsg('Upload failed. Please try again.')
@@ -83,7 +83,8 @@ export default function ProfilePage() {
     return Array.isArray(v) ? v.join('\n') : String(v)
   }
 
-  const resumeMarkdown = (val('resume_markdown') as string | undefined) ?? ''
+  // resume_text is the correct field name in the Profile type
+  const resumeText = (val('resume_text') as string | undefined) ?? ''
   const dirty = Object.keys(form).length > 0
 
   return (
@@ -126,7 +127,7 @@ export default function ProfilePage() {
             >
               <Upload size={24} className="mb-2" style={{ color: 'var(--color-text-faint)' }} />
               <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
-                {uploading ? 'Uploading\u2026' : resumeMarkdown ? 'Replace resume (PDF or DOCX)' : 'Upload PDF or DOCX'}
+                {uploading ? 'Uploading\u2026' : resumeText ? 'Replace resume (PDF or DOCX)' : 'Upload PDF or DOCX'}
               </p>
               <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                 Drag and drop or click to browse
@@ -145,8 +146,8 @@ export default function ProfilePage() {
               />
             </div>
 
-            {/* Resume content — shown when resume_markdown exists */}
-            {resumeMarkdown ? (
+            {/* Resume content panel — shown when resume_text exists */}
+            {resumeText ? (
               <div className="mt-4 rounded-xl border" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-offset)' }}>
                 {/* Toolbar */}
                 <div
@@ -157,7 +158,7 @@ export default function ProfilePage() {
                     <FileText size={14} style={{ color: 'var(--color-primary)' }} />
                     <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Extracted Resume Text</span>
                     <Badge className="text-zinc-400 bg-zinc-400/10 text-[10px]">
-                      {resumeMarkdown.length.toLocaleString()} chars
+                      {resumeText.length.toLocaleString()} chars
                     </Badge>
                   </div>
                   <button
@@ -178,8 +179,8 @@ export default function ProfilePage() {
                   <textarea
                     className="w-full bg-transparent text-xs font-mono outline-none p-4 resize-y"
                     style={{ color: 'var(--color-text)', minHeight: 320 }}
-                    value={resumeMarkdown}
-                    onChange={e => set('resume_markdown', e.target.value)}
+                    value={resumeText}
+                    onChange={e => set('resume_text', e.target.value)}
                     spellCheck={false}
                   />
                 ) : (
@@ -187,7 +188,7 @@ export default function ProfilePage() {
                     className="text-xs p-4 overflow-x-auto whitespace-pre-wrap leading-relaxed"
                     style={{ color: 'var(--color-text-muted)', maxHeight: 400, overflowY: 'auto', fontFamily: 'ui-monospace, monospace' }}
                   >
-                    {resumeMarkdown}
+                    {resumeText}
                   </pre>
                 )}
               </div>
