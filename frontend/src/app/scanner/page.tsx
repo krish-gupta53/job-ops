@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatDate, timeAgo } from '@/lib/utils'
+import { timeAgo } from '@/lib/utils'
 import type { ScanSource, ScanLog } from '@/types'
 import {
   Radar, Plus, Play, Trash2, ToggleLeft, ToggleRight,
@@ -24,6 +24,12 @@ const SOURCE_TYPE_HINTS: Record<string, string> = {
   custom: 'any ATS or careers page URL',
 }
 
+interface ScanResult {
+  total_found: number
+  total_new: number
+  sources_scanned: number
+}
+
 export default function ScannerPage() {
   const { data: sources, isLoading: srcLoading } = useSWR<ScanSource[]>('scan-sources', scannerApi.sources)
   const { data: logs, isLoading: logsLoading } = useSWR<ScanLog[]>('scan-logs', () => scannerApi.logs(15))
@@ -31,7 +37,7 @@ export default function ScannerPage() {
   const [scanning, setScanning] = useState(false)
   const [seeding, setSeeding] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [scanResult, setScanResult] = useState<{ total_found: number; total_new: number; sources_scanned: number } | null>(null)
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [showAllSources, setShowAllSources] = useState(false)
 
   const enabledCount = sources?.filter(s => s.enabled).length ?? 0
@@ -42,11 +48,12 @@ export default function ScannerPage() {
     setScanning(true)
     setScanResult(null)
     try {
-      const result = await scannerApi.runScan()
-      // Poll for a bit then refresh — scan runs in background
+      await scannerApi.runScan()
+      // Scan runs in background — wait a moment then refresh logs
       await new Promise(r => setTimeout(r, 3000))
       await Promise.all([mutate('scan-sources'), mutate('scan-logs'), mutate('jobs')])
-      setScanResult(result as typeof scanResult)
+      // Show a generic "started" result since the scan is async
+      setScanResult({ total_found: 0, total_new: 0, sources_scanned: enabledCount })
     } catch (e) {
       console.error(e)
     } finally {
@@ -58,7 +65,7 @@ export default function ScannerPage() {
     setSeeding(true)
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/scanner/seed-defaults`, { method: 'POST' })
-      const data = await res.json()
+      const data = await res.json() as { message: string }
       await mutate('scan-sources')
       alert(`Done! ${data.message}`)
     } catch (e) {
@@ -105,9 +112,8 @@ export default function ScannerPage() {
             </p>
             {scanResult && (
               <div className="flex items-center gap-3 mt-3">
-                <Badge className="text-emerald-400 bg-emerald-400/10">✓ {scanResult.total_new} new jobs found</Badge>
-                <Badge className="text-blue-400 bg-blue-400/10">{scanResult.total_found} total listings</Badge>
-                <Badge className="text-zinc-400 bg-zinc-400/10">{scanResult.sources_scanned} sources scanned</Badge>
+                <Badge className="text-emerald-400 bg-emerald-400/10">✓ Scan started for {scanResult.sources_scanned} sources</Badge>
+                <Badge className="text-blue-400 bg-blue-400/10">Check Jobs tab for results</Badge>
               </div>
             )}
           </div>
@@ -187,7 +193,7 @@ export default function ScannerPage() {
             <Building2 size={36} className="mb-3" style={{ color: 'var(--color-text-faint)' }} />
             <p className="text-sm font-medium mb-1" style={{ color: 'var(--color-text)' }}>No companies configured</p>
             <p className="text-sm mb-5" style={{ color: 'var(--color-text-muted)' }}>
-              Load the 80+ pre-built companies from career-ops or add your own.
+              Load 80+ pre-built companies or add your own.
             </p>
             <div className="flex gap-2">
               <Button size="sm" variant="primary" disabled={seeding} onClick={handleSeedDefaults}>
@@ -302,7 +308,7 @@ export default function ScannerPage() {
             </div>
           ) : !logs?.length ? (
             <div className="p-8 text-center">
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No scans run yet. Hit "Scan All & Find Jobs" above.</p>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No scans run yet. Hit &quot;Scan All &amp; Find Jobs&quot; above.</p>
             </div>
           ) : (
             <table className="w-full text-sm">
