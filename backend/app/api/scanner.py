@@ -21,7 +21,7 @@ _live_subscribers: list[asyncio.Queue] = []
 
 
 def push_scan_event(event: dict):
-    """Called from scanner_service to broadcast a job-evaluated event to all SSE subscribers."""
+    """Called from scanner_service to broadcast events to all SSE subscribers."""
     dead = []
     for q in _live_subscribers:
         try:
@@ -126,8 +126,8 @@ async def scan_status():
 
 
 @router.post("/seed-defaults")
-async def seed_defaults(db: AsyncSession = Depends(get_db)):
-    await _require_resume(db)
+async def seed_defaults():
+    """Add any missing default sources. No resume required — this just manages the source list."""
     from app.services.scanner_service import seed_missing_defaults
     added = await seed_missing_defaults()
     return {"added": added, "message": f"{added} new default source(s) added."}
@@ -169,15 +169,21 @@ async def scan_logs(limit: int = 20, db: AsyncSession = Depends(get_db)):
 @router.get("/live")
 async def live_scan_events():
     """
-    SSE endpoint — streams job-evaluated events in real time during a scan.
-    Each event is a JSON object: { type, job_id, title, company, score, grade, status }
+    SSE endpoint — streams scan events in real time during a scan.
+
+    Event types emitted:
+      - source_start   : a company source scan has begun
+      - job_evaluated  : a single job has been AI-evaluated
+      - source_done    : a company source scan has completed
+      - scan_done      : the entire scan has finished
+      - ping           : keep-alive heartbeat (every 25 s)
     """
     queue: asyncio.Queue = asyncio.Queue(maxsize=200)
     _live_subscribers.append(queue)
 
     async def event_generator():
         try:
-            # Send a heartbeat immediately so the connection is confirmed
+            # Confirm the connection immediately
             yield "event: connected\ndata: {}\n\n"
             while True:
                 try:
@@ -185,9 +191,13 @@ async def live_scan_events():
                     if event is None:  # sentinel — scan ended
                         yield "event: scan_done\ndata: {}\n\n"
                         break
-                    yield f"event: job_evaluated\ndata: {json.dumps(event)}\n\n"
+                    # Route each event by its "type" field so frontend
+                    # listeners for source_start / source_done / job_evaluated
+                    # all receive the correct SSE event name.
+                    event_name = event.get("type", "job_evaluated") if isinstance(event, dict) else "job_evaluated"
+                    yield f"event: {event_name}\ndata: {json.dumps(event)}\n\n"
                 except asyncio.TimeoutError:
-                    # Keep-alive ping every 25s
+                    # Keep-alive ping every 25 s
                     yield "event: ping\ndata: {}\n\n"
         finally:
             try:

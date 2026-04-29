@@ -26,7 +26,7 @@ const SOURCE_TYPE_HINTS: Record<string, string> = {
   custom: 'any ATS or careers page URL',
 }
 
-type SeedStatus = 'idle' | 'seeding' | 'scanning' | 'done' | 'error'
+type SeedStatus = 'idle' | 'seeding' | 'done' | 'error'
 
 const TOKENS_PER_SOURCE = 1500
 const AVG_JOBS_PER_SOURCE = 15
@@ -84,7 +84,6 @@ export default function ScannerPage() {
 
   // Scan limit modal state
   const [scanLimitOpen, setScanLimitOpen] = useState(false)
-  const [pendingScanType, setPendingScanType] = useState<'run' | 'seedAndScan'>('run')
   const [maxSources, setMaxSources] = useState(10)
 
   const enabledCount = sources?.filter(s => s.enabled).length ?? 0
@@ -105,8 +104,7 @@ export default function ScannerPage() {
     es.addEventListener('job_evaluated', (e: MessageEvent) => {
       try {
         const job: LiveJob = JSON.parse(e.data)
-        setLiveJobs(prev => [job, ...prev].slice(0, 50)) // keep last 50
-        // also invalidate the jobs list so Jobs tab updates
+        setLiveJobs(prev => [job, ...prev].slice(0, 50))
         mutate('jobs')
       } catch {}
     })
@@ -119,7 +117,6 @@ export default function ScannerPage() {
     })
 
     es.addEventListener('source_done', () => {
-      // refresh logs after each source completes
       mutate('scan-logs')
       mutate('scan-sources')
     })
@@ -134,7 +131,6 @@ export default function ScannerPage() {
     })
 
     es.onerror = () => {
-      // SSE disconnected — fall back to polling
       stopSSE()
     }
   }
@@ -146,7 +142,7 @@ export default function ScannerPage() {
     }
   }
 
-  // ── Fallback poll (also keeps scanRunning flag fresh) ──
+  // ── Fallback poll ──
   function startLivePolling() {
     if (pollRef.current) return
     pollRef.current = setInterval(async () => {
@@ -172,7 +168,6 @@ export default function ScannerPage() {
     }
   }
 
-  // Check initial scan state on mount
   useEffect(() => {
     scannerApi.scanStatus().then(s => {
       setScanRunning(s.running)
@@ -201,10 +196,32 @@ export default function ScannerPage() {
     }
   }
 
-  async function openScanLimitModal(type: 'run' | 'seedAndScan') {
+  // ── Load defaults ONLY — no scanning ──
+  async function handleSeedOnly() {
+    setSeedStatus('seeding')
+    setSeedMsg('')
+    try {
+      const seedRes = await scannerApi.seedDefaults()
+      await mutate('scan-sources')
+      setSeedStatus('done')
+      if (seedRes.added > 0) {
+        setSeedMsg(`${seedRes.added} companies added. You can now toggle which ones to include and click "Scan & Find Jobs".`)
+      } else {
+        setSeedMsg('All default companies are already loaded. Toggle which ones to include, then click "Scan & Find Jobs".')
+      }
+      setSeedMsgType('info')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      setSeedStatus('error')
+      setSeedMsg(`Error loading defaults: ${msg}`)
+      setSeedMsgType('error')
+    }
+  }
+
+  // ── Open scan limit modal ──
+  async function openScanLimitModal() {
     const hasResume = await checkResume()
     if (!hasResume) return
-    setPendingScanType(type)
     setMaxSources(Math.min(10, enabledCount || 10))
     setScanLimitOpen(true)
   }
@@ -238,52 +255,9 @@ export default function ScannerPage() {
     }
   }
 
-  async function handleSeedAndScan(limit: number) {
-    setSeedStatus('seeding')
-    setSeedMsg('')
-    try {
-      const seedRes = await scannerApi.seedDefaults()
-      setSeedMsg(`${seedRes.added} new companies added. Starting scan…`)
-      setSeedMsgType('info')
-      await mutate('scan-sources')
-
-      setSeedStatus('scanning')
-      setScanRunning(true)
-      setLiveJobs([])
-      setCurrentSource(null)
-      startSSE()
-      startLivePolling()
-      await scannerApi.runScan(limit)
-
-      setSeedStatus('done')
-      setSeedMsg(
-        `${seedRes.added > 0 ? seedRes.added + ' companies added. ' : 'All defaults already present. '}` +
-        `Scan started for ${limit} source(s) — results appear below as they come in.`
-      )
-      setSeedMsgType('info')
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Unknown error'
-      stopLivePolling()
-      stopSSE()
-      setScanRunning(false)
-      if (msg.includes('no_resume')) {
-        setSeedStatus('idle')
-        setNoResumeOpen(true)
-      } else {
-        setSeedStatus('error')
-        setSeedMsg(`Error: ${msg}`)
-        setSeedMsgType('error')
-      }
-    }
-  }
-
   async function handleConfirmScan() {
     setScanLimitOpen(false)
-    if (pendingScanType === 'run') {
-      await handleRunScan(maxSources)
-    } else {
-      await handleSeedAndScan(maxSources)
-    }
+    await handleRunScan(maxSources)
   }
 
   async function handleCancelScan() {
@@ -329,7 +303,7 @@ export default function ScannerPage() {
     }
   }
 
-  const seedBusy = seedStatus === 'seeding' || seedStatus === 'scanning'
+  const seedBusy = seedStatus === 'seeding'
 
   const bannerColor = {
     info: { bg: 'var(--color-primary-highlight)', text: 'var(--color-primary)' },
@@ -501,7 +475,7 @@ export default function ScannerPage() {
                 variant="primary"
                 size="lg"
                 disabled={enabledCount === 0}
-                onClick={() => openScanLimitModal('run')}
+                onClick={openScanLimitModal}
                 className="min-w-[200px] justify-center"
               >
                 <Play size={16} fill="currentColor" /> Scan &amp; Find Jobs
@@ -511,7 +485,7 @@ export default function ScannerPage() {
         </div>
       </div>
 
-      {/* ── Live results feed — visible only while scanning or if jobs were found ── */}
+      {/* ── Live results feed ── */}
       {(scanRunning || liveJobs.length > 0) && (
         <section>
           <div className="flex items-center gap-2 mb-3">
@@ -608,16 +582,18 @@ export default function ScannerPage() {
             <Badge className="text-teal-400 bg-teal-400/10">{enabledCount}/{totalCount} enabled</Badge>
           </div>
           <div className="flex items-center gap-2">
+            {/* Load defaults — only seeds, does NOT start a scan */}
             <Button
               size="sm"
               variant="ghost"
               disabled={seedBusy || scanRunning}
-              onClick={() => openScanLimitModal('seedAndScan')}
-              title="Add all default companies and immediately scan for jobs"
+              onClick={handleSeedOnly}
+              title="Add all default companies to your list (no scan started)"
             >
-              {seedStatus === 'seeding' && <><Loader2 size={13} className="animate-spin" /> Adding companies…</>}
-              {seedStatus === 'scanning' && <><Loader2 size={13} className="animate-spin" /> Scanning for jobs…</>}
-              {(seedStatus === 'idle' || seedStatus === 'done' || seedStatus === 'error') && <><RefreshCw size={13} /> Load All Defaults &amp; Scan</>}
+              {seedBusy
+                ? <><Loader2 size={13} className="animate-spin" /> Adding companies…</>
+                : <><RefreshCw size={13} /> Load All Defaults</>
+              }
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setAddOpen(true)}>
               <Plus size={14} /> Add Company
@@ -653,15 +629,18 @@ export default function ScannerPage() {
             ))}
           </div>
         ) : !sources?.length ? (
+          // ── Empty state: two separate buttons ──
           <div className="rounded-xl border border-dashed flex flex-col items-center py-16 text-center" style={{ borderColor: 'var(--color-border)' }}>
             <Building2 size={36} className="mb-3" style={{ color: 'var(--color-text-faint)' }} />
             <p className="text-sm font-medium mb-1" style={{ color: 'var(--color-text)' }}>No companies configured</p>
-            <p className="text-sm mb-5" style={{ color: 'var(--color-text-muted)' }}>Load 80+ pre-built companies and immediately scan for matching jobs.</p>
+            <p className="text-sm mb-2" style={{ color: 'var(--color-text-muted)' }}>Start by loading 80+ pre-built company sources.</p>
+            <p className="text-xs mb-5" style={{ color: 'var(--color-text-faint)' }}>After loading, toggle which companies to include, then click "Scan &amp; Find Jobs".</p>
             <div className="flex gap-2">
-              <Button size="sm" variant="primary" disabled={seedBusy} onClick={() => openScanLimitModal('seedAndScan')}>
-                {seedStatus === 'seeding' && <><Loader2 size={13} className="animate-spin" /> Adding companies…</>}
-                {seedStatus === 'scanning' && <><Loader2 size={13} className="animate-spin" /> Scanning for jobs…</>}
-                {(seedStatus === 'idle' || seedStatus === 'done' || seedStatus === 'error') && <><RefreshCw size={13} /> Load All Defaults &amp; Scan</>}
+              <Button size="sm" variant="primary" disabled={seedBusy} onClick={handleSeedOnly}>
+                {seedBusy
+                  ? <><Loader2 size={13} className="animate-spin" /> Adding companies…</>
+                  : <><RefreshCw size={13} /> Load All Defaults</>
+                }
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setAddOpen(true)}><Plus size={13} /> Add Manually</Button>
             </div>
@@ -734,7 +713,7 @@ export default function ScannerPage() {
         )}
       </section>
 
-      {/* Scan Logs — live-updating */}
+      {/* Scan Logs */}
       <section>
         <div className="flex items-center gap-2 mb-4">
           <Clock size={15} style={{ color: 'var(--color-primary)' }} />
