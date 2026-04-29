@@ -44,7 +44,48 @@ def _to_list(value) -> list:
             return parsed if isinstance(parsed, list) else [value]
         except Exception:
             return [value]
+    if isinstance(value, dict):
+        # AI returned an object instead of a list — wrap values as strings
+        return [str(v) for v in value.values()]
     return []
+
+
+def _extract_full_report(data: dict) -> str:
+    """
+    Robustly extract full_report from AI response.
+    Handles cases where AI returns it as a dict, list, or nested object
+    instead of a plain markdown string.
+    """
+    raw_report = data.get("full_report", "")
+    if isinstance(raw_report, str) and raw_report.strip():
+        return raw_report
+    # AI returned a dict/list — build a readable markdown fallback
+    if isinstance(raw_report, dict):
+        lines = []
+        for k, v in raw_report.items():
+            lines.append(f"## {k.replace('_', ' ').title()}")
+            if isinstance(v, list):
+                lines.extend(f"- {item}" for item in v)
+            else:
+                lines.append(str(v))
+            lines.append("")
+        return "\n".join(lines)
+    # Fallback: build report from the top-level evaluation fields
+    parts = []
+    if data.get("match_summary"):
+        parts.append(f"## Match Summary\n{data['match_summary']}")
+    if data.get("strengths"):
+        parts.append("## Strengths\n" + "\n".join(f"- {s}" for s in _to_list(data["strengths"])))
+    if data.get("gaps"):
+        parts.append("## Gaps\n" + "\n".join(f"- {g}" for g in _to_list(data["gaps"])))
+    if data.get("positioning_strategy"):
+        parts.append(f"## Positioning Strategy\n{data['positioning_strategy']}")
+    if data.get("interview_prep"):
+        prep = _to_list(data["interview_prep"])
+        parts.append("## Interview Prep\n" + "\n".join(f"- {p}" for p in prep))
+    if data.get("recommendation"):
+        parts.append(f"## Recommendation\n**{data['recommendation']}**")
+    return "\n\n".join(parts) if parts else ""
 
 
 async def evaluate_job(job_id: str) -> dict:
@@ -108,16 +149,20 @@ Provide a detailed evaluation. Return a JSON object with EXACTLY these keys:
   "comp_assessment": <1-2 sentences on salary competitiveness>,
   "interview_prep": [<list of 2-3 key topics to prepare as strings>],
   "recommendation": <string: one of [Strongly Apply, Apply, Consider, Skip, Hard Pass]>,
-  "full_report": <full markdown evaluation report as a single string with all sections>
+  "full_report": <full markdown evaluation report as a single plain string with all sections>
 }}
 
-IMPORTANT: interview_prep must be a JSON array of strings, not an object.
-full_report must be a plain markdown string, NOT a JSON object.
-Return only valid JSON. No markdown fences."""
+CRITICAL RULES:
+- interview_prep MUST be a JSON array of strings, NOT an object.
+- full_report MUST be a plain markdown string, NOT a JSON object or nested structure.
+- Return only valid JSON. No markdown fences. No extra keys."""
 
         try:
             raw = await generate_flash(prompt)
-            raw = re.sub(r'^```json\s*|^```\s*|\s*```$', '', raw.strip(), flags=re.MULTILINE)
+            # Strip markdown code fences in any variation
+            raw = re.sub(r'^```(?:json)?\s*', '', raw.strip(), flags=re.MULTILINE)
+            raw = re.sub(r'\s*```$', '', raw.strip(), flags=re.MULTILINE)
+            raw = raw.strip()
             data = json.loads(raw)
 
             job.score = float(data.get("score", 0.0))
@@ -127,8 +172,8 @@ Return only valid JSON. No markdown fences."""
             job.strengths = _to_list(data.get("strengths", []))
             job.gaps = _to_list(data.get("gaps", []))
             job.keywords = _to_list(data.get("keywords", []))
-            # full_report must be a string — coerce dict/list to JSON string if AI misbehaves
-            job.evaluation_report = _to_str(data.get("full_report", ""))
+            # Use robust extractor — handles dict/list/string from AI
+            job.evaluation_report = _extract_full_report(data)
             job.evaluated_at = datetime.utcnow()
 
             # Auto-shortlist if score >= 3.5

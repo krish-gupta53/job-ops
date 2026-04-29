@@ -1,15 +1,38 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
 import logging
+import asyncio
+import json
 
 from app.core.database import get_db
 from app.core.models import ScanSource, ScanLog, Profile
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# In-memory live event queue for SSE — scanner_service pushes events here
+# ---------------------------------------------------------------------------
+_live_subscribers: list[asyncio.Queue] = []
+
+
+def push_scan_event(event: dict):
+    """Called from scanner_service to broadcast a job-evaluated event to all SSE subscribers."""
+    dead = []
+    for q in _live_subscribers:
+        try:
+            q.put_nowait(event)
+        except asyncio.QueueFull:
+            dead.append(q)
+    for q in dead:
+        try:
+            _live_subscribers.remove(q)
+        except ValueError:
+            pass
 
 
 class SourceCreate(BaseModel):
@@ -80,7 +103,6 @@ async def trigger_scan(body: ScanRunRequest = ScanRunRequest(), db: AsyncSession
     if is_scan_running():
         raise HTTPException(status_code=409, detail="scan_already_running")
     await _require_resume(db)
-    import asyncio
     from app.services.scanner_service import run_full_scan
     asyncio.create_task(run_full_scan(max_sources=body.max_sources))
     return {"message": "Scan started", "max_sources": body.max_sources}
@@ -119,7 +141,65 @@ async def list_defaults():
 
 @router.get("/logs")
 async def scan_logs(limit: int = 20, db: AsyncSession = Depends(get_db)):
+    """Return scan logs joined with source name."""
     result = await db.execute(
-        select(ScanLog).order_by(ScanLog.started_at.desc()).limit(limit)
+        select(ScanLog, ScanSource.name.label("source_name"))
+        .outerjoin(ScanSource, ScanLog.source_id == ScanSource.id)
+        .order_by(ScanLog.started_at.desc())
+        .limit(limit)
     )
-    return result.scalars().all()
+    rows = result.all()
+    logs = []
+    for log, source_name in rows:
+        log_dict = {
+            "id": log.id,
+            "source_id": log.source_id,
+            "source_name": source_name or "—",
+            "status": log.status,
+            "jobs_found": log.jobs_found,
+            "jobs_new": log.jobs_new,
+            "error_message": log.error_message,
+            "started_at": log.started_at.isoformat() if log.started_at else None,
+            "finished_at": log.finished_at.isoformat() if log.finished_at else None,
+        }
+        logs.append(log_dict)
+    return logs
+
+
+@router.get("/live")
+async def live_scan_events():
+    """
+    SSE endpoint — streams job-evaluated events in real time during a scan.
+    Each event is a JSON object: { type, job_id, title, company, score, grade, status }
+    """
+    queue: asyncio.Queue = asyncio.Queue(maxsize=200)
+    _live_subscribers.append(queue)
+
+    async def event_generator():
+        try:
+            # Send a heartbeat immediately so the connection is confirmed
+            yield "event: connected\ndata: {}\n\n"
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=25.0)
+                    if event is None:  # sentinel — scan ended
+                        yield "event: scan_done\ndata: {}\n\n"
+                        break
+                    yield f"event: job_evaluated\ndata: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    # Keep-alive ping every 25s
+                    yield "event: ping\ndata: {}\n\n"
+        finally:
+            try:
+                _live_subscribers.remove(queue)
+            except ValueError:
+                pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

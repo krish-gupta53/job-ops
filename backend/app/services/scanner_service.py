@@ -197,11 +197,13 @@ async def run_full_scan(max_sources: Optional[int] = None) -> dict:
     _scan_cancel_requested = False
     _scan_running = True
 
+    # Import push_scan_event lazily to avoid circular import
+    from app.api.scanner import push_scan_event
+
     try:
         await seed_default_sources()
 
         async with AsyncSessionLocal() as db:
-            # Order by last_scanned ASC (NULLs first) so unscanned sources are prioritised
             sources_result = await db.execute(
                 select(ScanSource)
                 .where(ScanSource.enabled == True)
@@ -209,7 +211,7 @@ async def run_full_scan(max_sources: Optional[int] = None) -> dict:
             )
             all_sources = sources_result.scalars().all()
 
-        # Apply the cap BEFORE the loop — hard limit on sources processed
+        # Apply the cap BEFORE the loop
         if max_sources is not None and max_sources > 0:
             sources = all_sources[:max_sources]
             logger.info(f"Scan capped at {max_sources} sources (out of {len(all_sources)} enabled)")
@@ -232,6 +234,9 @@ async def run_full_scan(max_sources: Optional[int] = None) -> dict:
                 await db.commit()
                 await db.refresh(log)
 
+            # Push SSE event: source scan started
+            push_scan_event({"type": "source_start", "company": source.name, "source_type": source.source_type})
+
             found_jobs = []
             try:
                 if source.source_type == "greenhouse":
@@ -245,7 +250,6 @@ async def run_full_scan(max_sources: Optional[int] = None) -> dict:
                 new_count = 0
 
                 for jd in found_jobs:
-                    # Check cancel inside the job loop too
                     if _scan_cancel_requested:
                         break
 
@@ -282,7 +286,20 @@ async def run_full_scan(max_sources: Optional[int] = None) -> dict:
 
                     # Evaluate immediately after insert
                     try:
-                        await evaluate_job(job.id)
+                        eval_result = await evaluate_job(job.id)
+                        # Push SSE event: job evaluated
+                        push_scan_event({
+                            "type": "job_evaluated",
+                            "job_id": job.id,
+                            "title": job.title,
+                            "company": job.company,
+                            "score": eval_result.get("score", 0),
+                            "grade": eval_result.get("grade", ""),
+                            "status": eval_result.get("status", "new"),
+                            "archetype": eval_result.get("archetype", ""),
+                            "match_summary": eval_result.get("match_summary", ""),
+                            "source_url": job.source_url,
+                        })
                     except Exception as eval_err:
                         logger.warning(f"Eval failed for {job.id}: {eval_err}")
 
@@ -304,6 +321,9 @@ async def run_full_scan(max_sources: Optional[int] = None) -> dict:
                         src_obj.jobs_found_total += len(found_jobs)
                         await db.commit()
 
+                # Push SSE event: source done
+                push_scan_event({"type": "source_done", "company": source.name, "jobs_found": len(found_jobs), "jobs_new": new_count})
+
             except Exception as e:
                 errors.append(f"{source.name}: {str(e)}")
                 logger.error(f"Scan failed for {source.name}: {e}")
@@ -315,6 +335,9 @@ async def run_full_scan(max_sources: Optional[int] = None) -> dict:
                         log_obj.error_message = str(e)
                         log_obj.finished_at = datetime.utcnow()
                         await db.commit()
+
+        # Signal SSE subscribers that scan is complete
+        push_scan_event(None)  # sentinel
 
         return {
             "sources_scanned": len(sources),

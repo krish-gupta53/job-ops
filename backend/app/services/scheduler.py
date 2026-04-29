@@ -10,11 +10,14 @@ _scheduler = None
 
 
 async def run_scheduled_scan():
-    """Called by the scheduler to run a full scan."""
+    """Called by the scheduler — skips if a scan is already running."""
     try:
-        from app.services.scanner_service import run_full_scan
+        from app.services.scanner_service import run_full_scan, is_scan_running
+        if is_scan_running():
+            logger.info("Scheduled scan skipped — a scan is already running.")
+            return
         logger.info("Starting scheduled scan...")
-        result = await run_full_scan()
+        result = await run_full_scan()  # no max_sources cap on scheduled runs
         logger.info(f"Scheduled scan complete: {result['total_new']} new jobs found")
     except Exception as e:
         logger.error(f"Scheduled scan error: {e}")

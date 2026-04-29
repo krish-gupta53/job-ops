@@ -13,7 +13,7 @@ import {
   Plus, Play, Trash2, ToggleLeft, ToggleRight,
   CheckCircle2, XCircle, Loader2, Clock, Globe,
   Zap, RefreshCw, Building2, ChevronDown, ChevronUp,
-  AlertTriangle, FileText, ArrowRight, Coins, Square
+  AlertTriangle, FileText, ArrowRight, Coins, Square, Sparkles
 } from 'lucide-react'
 
 const SOURCE_TYPES = ['greenhouse', 'lever', 'ashby', 'workday', 'custom']
@@ -31,16 +31,45 @@ type SeedStatus = 'idle' | 'seeding' | 'scanning' | 'done' | 'error'
 const TOKENS_PER_SOURCE = 1500
 const AVG_JOBS_PER_SOURCE = 15
 
+const GRADE_COLORS: Record<string, string> = {
+  A: 'text-emerald-400 bg-emerald-400/10',
+  B: 'text-teal-400 bg-teal-400/10',
+  C: 'text-yellow-400 bg-yellow-400/10',
+  D: 'text-orange-400 bg-orange-400/10',
+  F: 'text-red-400 bg-red-400/10',
+}
+
+interface LiveJob {
+  job_id: string
+  title: string
+  company: string
+  score: number
+  grade: string
+  status: string
+  archetype: string
+  match_summary: string
+  source_url: string
+}
+
+interface ScanLogWithName extends ScanLog {
+  source_name?: string
+}
+
 export default function ScannerPage() {
   const router = useRouter()
 
   // ── SWR base fetches (slow refresh when idle) ──
   const { data: sources, isLoading: srcLoading } = useSWR<ScanSource[]>('scan-sources', scannerApi.sources, { refreshInterval: 30000 })
-  const { data: logs, isLoading: logsLoading } = useSWR<ScanLog[]>('scan-logs', () => scannerApi.logs(15), { refreshInterval: 30000 })
+  const { data: logs, isLoading: logsLoading } = useSWR<ScanLogWithName[]>('scan-logs', () => scannerApi.logs(15), { refreshInterval: 30000 })
 
   // ── Scan running state (polled from backend) ──
   const [scanRunning, setScanRunning] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sseRef = useRef<EventSource | null>(null)
+
+  // ── Live feed state ──
+  const [liveJobs, setLiveJobs] = useState<LiveJob[]>([])
+  const [currentSource, setCurrentSource] = useState<string | null>(null)
 
   // ── UI state ──
   const [addOpen, setAddOpen] = useState(false)
@@ -65,22 +94,75 @@ export default function ScannerPage() {
   const estimatedTokens = maxSources * AVG_JOBS_PER_SOURCE * TOKENS_PER_SOURCE
   const estimatedCost = ((estimatedTokens / 1_000_000) * 0.15).toFixed(4)
 
-  // ── Poll backend scan status + live-refresh data while running ──
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+  // ── SSE: connect to live stream when scan starts ──
+  function startSSE() {
+    if (sseRef.current) return
+    const es = new EventSource(`${API_BASE}/api/scanner/live`)
+    sseRef.current = es
+
+    es.addEventListener('job_evaluated', (e: MessageEvent) => {
+      try {
+        const job: LiveJob = JSON.parse(e.data)
+        setLiveJobs(prev => [job, ...prev].slice(0, 50)) // keep last 50
+        // also invalidate the jobs list so Jobs tab updates
+        mutate('jobs')
+      } catch {}
+    })
+
+    es.addEventListener('source_start', (e: MessageEvent) => {
+      try {
+        const d = JSON.parse(e.data)
+        setCurrentSource(d.company)
+      } catch {}
+    })
+
+    es.addEventListener('source_done', () => {
+      // refresh logs after each source completes
+      mutate('scan-logs')
+      mutate('scan-sources')
+    })
+
+    es.addEventListener('scan_done', () => {
+      setScanRunning(false)
+      setCurrentSource(null)
+      stopSSE()
+      mutate('scan-logs')
+      mutate('scan-sources')
+      mutate('jobs')
+    })
+
+    es.onerror = () => {
+      // SSE disconnected — fall back to polling
+      stopSSE()
+    }
+  }
+
+  function stopSSE() {
+    if (sseRef.current) {
+      sseRef.current.close()
+      sseRef.current = null
+    }
+  }
+
+  // ── Fallback poll (also keeps scanRunning flag fresh) ──
   function startLivePolling() {
     if (pollRef.current) return
     pollRef.current = setInterval(async () => {
       try {
         const status = await scannerApi.scanStatus()
         setScanRunning(status.running)
-        // Always refresh logs and sources during scan for live updates
-        await Promise.all([mutate('scan-logs'), mutate('scan-sources'), mutate('jobs')])
         if (!status.running) {
           stopLivePolling()
+          stopSSE()
+          setCurrentSource(null)
+          await Promise.all([mutate('scan-logs'), mutate('scan-sources'), mutate('jobs')])
         }
       } catch {
         // ignore transient errors
       }
-    }, 3000)
+    }, 4000)
   }
 
   function stopLivePolling() {
@@ -94,9 +176,15 @@ export default function ScannerPage() {
   useEffect(() => {
     scannerApi.scanStatus().then(s => {
       setScanRunning(s.running)
-      if (s.running) startLivePolling()
+      if (s.running) {
+        startSSE()
+        startLivePolling()
+      }
     }).catch(() => {})
-    return () => stopLivePolling()
+    return () => {
+      stopLivePolling()
+      stopSSE()
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -124,6 +212,9 @@ export default function ScannerPage() {
   async function handleRunScan(limit: number) {
     setScanRunning(true)
     setScanResult(null)
+    setLiveJobs([])
+    setCurrentSource(null)
+    startSSE()
     startLivePolling()
     try {
       await scannerApi.runScan(limit)
@@ -131,6 +222,7 @@ export default function ScannerPage() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error'
       stopLivePolling()
+      stopSSE()
       setScanRunning(false)
       if (msg.includes('no_resume')) {
         setNoResumeOpen(true)
@@ -157,6 +249,9 @@ export default function ScannerPage() {
 
       setSeedStatus('scanning')
       setScanRunning(true)
+      setLiveJobs([])
+      setCurrentSource(null)
+      startSSE()
       startLivePolling()
       await scannerApi.runScan(limit)
 
@@ -169,6 +264,7 @@ export default function ScannerPage() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error'
       stopLivePolling()
+      stopSSE()
       setScanRunning(false)
       if (msg.includes('no_resume')) {
         setSeedStatus('idle')
@@ -373,13 +469,15 @@ export default function ScannerPage() {
             </div>
             <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
               {scanRunning
-                ? 'Scan is running — results appear in the logs below as each source completes.'
+                ? currentSource
+                  ? `Scanning ${currentSource} — jobs appear below as each is evaluated.`
+                  : 'Scan is running — results appear below as each job is evaluated.'
                 : 'Scans enabled sources, deduplicates results, and AI-evaluates every new job against your profile — in one run.'}
             </p>
             {scanResult && !scanRunning && (
               <div className="flex items-center gap-3 mt-3">
-                <Badge className="text-emerald-400 bg-emerald-400/10">✓ Scan started for {scanResult.sources_scanned} sources</Badge>
-                <Badge className="text-blue-400 bg-blue-400/10">Check Jobs tab for results</Badge>
+                <Badge className="text-emerald-400 bg-emerald-400/10">✓ Scan completed for {scanResult.sources_scanned} sources</Badge>
+                <Badge className="text-blue-400 bg-blue-400/10">{liveJobs.length} jobs found this run</Badge>
               </div>
             )}
           </div>
@@ -412,6 +510,92 @@ export default function ScannerPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Live results feed — visible only while scanning or if jobs were found ── */}
+      {(scanRunning || liveJobs.length > 0) && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles size={15} style={{ color: 'var(--color-primary)' }} />
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              Live Results
+            </h3>
+            {scanRunning && (
+              <span className="text-xs" style={{ color: 'var(--color-text-faint)' }}>— updating in real time</span>
+            )}
+            {liveJobs.length > 0 && (
+              <Badge className="text-teal-400 bg-teal-400/10 ml-1">{liveJobs.length} evaluated</Badge>
+            )}
+          </div>
+
+          {scanRunning && liveJobs.length === 0 && (
+            <div className="rounded-xl border p-6 flex items-center gap-3" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+              <Loader2 size={16} className="animate-spin shrink-0" style={{ color: 'var(--color-primary)' }} />
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                {currentSource ? `Scraping ${currentSource}…` : 'Waiting for first results…'}
+              </p>
+            </div>
+          )}
+
+          {liveJobs.length > 0 && (
+            <div className="space-y-2">
+              {liveJobs.map(job => (
+                <div
+                  key={job.job_id}
+                  className="rounded-xl border p-3.5 flex items-start gap-3"
+                  style={{
+                    background: 'var(--color-surface)',
+                    borderColor: job.grade === 'A' || job.grade === 'B'
+                      ? 'var(--color-primary)'
+                      : 'var(--color-border)',
+                    boxShadow: 'var(--shadow-sm)',
+                  }}
+                >
+                  <div className="shrink-0 mt-0.5">
+                    <Badge className={GRADE_COLORS[job.grade] ?? 'text-zinc-400 bg-zinc-400/10'}>
+                      {job.grade ?? '?'}
+                    </Badge>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
+                        {job.title}
+                      </span>
+                      <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{job.company}</span>
+                      {job.status === 'shortlisted' && (
+                        <Badge className="text-emerald-400 bg-emerald-400/10 text-[10px]">⭐ Shortlisted</Badge>
+                      )}
+                      {job.archetype && (
+                        <Badge className="text-zinc-400 bg-zinc-400/10 text-[10px]">{job.archetype}</Badge>
+                      )}
+                    </div>
+                    {job.match_summary && (
+                      <p className="text-xs mt-1 line-clamp-2" style={{ color: 'var(--color-text-muted)' }}>
+                        {job.match_summary}
+                      </p>
+                    )}
+                  </div>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <span className="text-xs tabular-nums font-bold" style={{ color: 'var(--color-primary)' }}>
+                      {typeof job.score === 'number' ? job.score.toFixed(1) : '—'}
+                    </span>
+                    {job.source_url && (
+                      <a
+                        href={job.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs underline"
+                        style={{ color: 'var(--color-text-faint)' }}
+                      >
+                        View
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Sources Header */}
       <section>
@@ -556,9 +740,7 @@ export default function ScannerPage() {
           <Clock size={15} style={{ color: 'var(--color-primary)' }} />
           <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Recent Scan Logs</h3>
           {scanRunning && (
-            <span className="text-xs" style={{ color: 'var(--color-text-faint)' }}>
-              — updating every 3s
-            </span>
+            <span className="text-xs" style={{ color: 'var(--color-text-faint)' }}>— updating live</span>
           )}
         </div>
         <div className="rounded-xl border overflow-hidden" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
@@ -601,7 +783,7 @@ export default function ScannerPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                        {(log as ScanLog & { source_name?: string }).source_name ?? '—'}
+                        {log.source_name ?? '—'}
                       </td>
                       <td className="px-4 py-3 text-xs tabular" style={{ color: 'var(--color-text)' }}>{log.jobs_found ?? 0}</td>
                       <td className="px-4 py-3"><Badge className="text-teal-400 bg-teal-400/10">{log.jobs_new ?? 0} new</Badge></td>
