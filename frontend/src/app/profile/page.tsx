@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import type { Profile } from '@/types'
 import {
-  User, Upload, Save, X, Loader2, CheckCircle2
+  User, Upload, Save, X, Loader2, CheckCircle2, FileText, Eye, Edit3
 } from 'lucide-react'
 
 type TagFieldKey = 'target_roles' | 'target_domains' | 'preferred_locations' | 'work_style' | 'skills'
@@ -22,6 +22,7 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState('')
+  const [resumeEditMode, setResumeEditMode] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   function val<K extends keyof Profile>(k: K): Profile[K] | undefined {
@@ -52,9 +53,12 @@ export default function ProfilePage() {
     setUploading(true)
     setUploadMsg('')
     try {
-      const res = await profileApi.uploadResume(file) as { message?: string }
-      setUploadMsg(res.message || 'Resume uploaded successfully!')
+      const res = await profileApi.uploadResume(file) as { message?: string; characters?: number }
+      setUploadMsg(`\u2713 Uploaded (${res.characters?.toLocaleString() ?? '?'} characters extracted)`)
       await mutate('profile')
+      // clear any local override so fresh server data is shown
+      setForm(f => { const n = { ...f }; delete n.resume_markdown; return n })
+      setResumeEditMode(false)
     } catch {
       setUploadMsg('Upload failed. Please try again.')
     } finally {
@@ -73,13 +77,13 @@ export default function ProfilePage() {
     set(field, current.filter(t => t !== tag))
   }
 
-  // Safely coerce proof_points (string | string[] | undefined) to string for textarea
   function proofPointsString(): string {
     const v = val('proof_points')
     if (!v) return ''
     return Array.isArray(v) ? v.join('\n') : String(v)
   }
 
+  const resumeMarkdown = (val('resume_markdown') as string | undefined) ?? ''
   const dirty = Object.keys(form).length > 0
 
   return (
@@ -114,14 +118,15 @@ export default function ProfilePage() {
 
           {/* Resume Upload */}
           <Section title="Resume" icon={<Upload size={15} style={{ color: 'var(--color-primary)' }} />}>
+            {/* Drop zone */}
             <div
-              className="rounded-xl border-2 border-dashed p-6 flex flex-col items-center text-center cursor-pointer transition-colors"
+              className="rounded-xl border-2 border-dashed p-6 flex flex-col items-center text-center cursor-pointer transition-colors hover:border-teal-500/50"
               style={{ borderColor: 'var(--color-border)' }}
               onClick={() => fileRef.current?.click()}
             >
               <Upload size={24} className="mb-2" style={{ color: 'var(--color-text-faint)' }} />
               <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
-                {uploading ? 'Uploading\u2026' : 'Upload PDF or DOCX'}
+                {uploading ? 'Uploading\u2026' : resumeMarkdown ? 'Replace resume (PDF or DOCX)' : 'Upload PDF or DOCX'}
               </p>
               <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                 Drag and drop or click to browse
@@ -139,6 +144,58 @@ export default function ProfilePage() {
                 onChange={handleUpload}
               />
             </div>
+
+            {/* Resume content — shown when resume_markdown exists */}
+            {resumeMarkdown ? (
+              <div className="mt-4 rounded-xl border" style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-offset)' }}>
+                {/* Toolbar */}
+                <div
+                  className="flex items-center justify-between px-4 py-2.5 border-b"
+                  style={{ borderColor: 'var(--color-divider)' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText size={14} style={{ color: 'var(--color-primary)' }} />
+                    <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>Extracted Resume Text</span>
+                    <Badge className="text-zinc-400 bg-zinc-400/10 text-[10px]">
+                      {resumeMarkdown.length.toLocaleString()} chars
+                    </Badge>
+                  </div>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors hover:bg-white/5"
+                    style={{ color: 'var(--color-text-muted)' }}
+                    onClick={() => setResumeEditMode(m => !m)}
+                  >
+                    {resumeEditMode
+                      ? <><Eye size={12} /> Preview</>
+                      : <><Edit3 size={12} /> Edit</>
+                    }
+                  </button>
+                </div>
+
+                {/* Body */}
+                {resumeEditMode ? (
+                  <textarea
+                    className="w-full bg-transparent text-xs font-mono outline-none p-4 resize-y"
+                    style={{ color: 'var(--color-text)', minHeight: 320 }}
+                    value={resumeMarkdown}
+                    onChange={e => set('resume_markdown', e.target.value)}
+                    spellCheck={false}
+                  />
+                ) : (
+                  <pre
+                    className="text-xs p-4 overflow-x-auto whitespace-pre-wrap leading-relaxed"
+                    style={{ color: 'var(--color-text-muted)', maxHeight: 400, overflowY: 'auto', fontFamily: 'ui-monospace, monospace' }}
+                  >
+                    {resumeMarkdown}
+                  </pre>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs mt-3 text-center" style={{ color: 'var(--color-text-faint)' }}>
+                No resume uploaded yet. Upload a PDF or DOCX above.
+              </p>
+            )}
           </Section>
 
           {/* Basic Info */}
@@ -319,7 +376,6 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
   )
 }
 
-// Renamed from TagField to TagFieldInput to avoid collision with the TagFieldKey type alias
 function TagFieldInput({
   label, tags, placeholder, onAdd, onRemove
 }: {
